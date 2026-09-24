@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% translate "الرئيسية" %}{% endblock %}
+{% block content %}
+<div class="mb-6">
+  <h1 class="text-2xl font-bold">{% blocktranslate with name=request.user.get_short_name %}أهلًا {{ name }} 👋{% endblocktranslate %}</h1>
+  <p class="text-sm text-stone-500">{{ current_org.name_ar }}</p>
+</div>
+
+<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+  {% if can.quotation_create %}
+  <div class="card flex flex-col items-start gap-3 p-5 sm:col-span-2 lg:col-span-1">
+    <div class="text-lg font-bold">{% translate "عرض سعر جديد" %}</div>
+    <p class="text-sm text-stone-500">{% translate "اختار العميل والمسؤول والأصناف وابعت العرض في دقيقتين." %}</p>
+    <span class="btn-primary opacity-60">{% translate "قريبًا" %}</span>
+  </div>
+  {% endif %}
+  <div class="card p-5">
+    <div class="text-sm text-stone-500">{% translate "عروض الشهر" %}</div>
+    <div class="mt-1 text-3xl font-bold">—</div>
+  </div>
+  <div class="card p-5">
+    <div class="text-sm text-stone-500">{% translate "حالة WhatsApp" %}</div>
+    <div class="mt-1 text-sm font-semibold text-stone-400">{% translate "لسه متربطش" %}</div>
+  </div>
+</div>
+{% endblock %}

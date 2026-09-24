@@ -1,0 +1,16 @@
+import os
+
+os.environ.setdefault("SECRET_KEY", "test-secret-key-not-for-production")
+os.environ.setdefault("FIELD_ENCRYPTION_KEY", "9X7OCXHJVDjSH7tYbRwxTMw2D2Oo9Vi5SCtgzuFm05Y=")
+os.environ.setdefault("DATABASE_URL", "postgres://postgres@127.0.0.1:54329/marsool")
+
+from .base import *
+
+DEBUG = False
+ALLOWED_HOSTS = ["testserver"]
+PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
+EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"
+STORAGES["staticfiles"] = {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"}
+MEDIA_ROOT = BASE_DIR / "tmp" / "test-media"
+PRIVATE_MEDIA_ROOT = MEDIA_ROOT / "private"
+STORAGES["default"]["OPTIONS"]["location"] = PRIVATE_MEDIA_ROOT

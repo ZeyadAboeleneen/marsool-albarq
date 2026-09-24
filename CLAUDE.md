@@ -9,12 +9,18 @@ Read `docs/plan/README.md` first, then the files relevant to the current phase.
   commit with message `phase-N: <summary>`, then STOP and wait for approval.
 - If a decision is not covered by the plan, **ask** instead of guessing. Do not silently change the
   locked decisions in `docs/plan/README.md`. If you believe a decision is wrong, say so and propose.
-- Development is local via Docker Compose. Never touch host ports 80/443. When production deployment
-  comes (Phase 10), other projects on the server must not be affected.
+- **Development is local on Windows WITHOUT Docker** (decided Sep 2026: no WSL/admin on the dev machine).
+  `run.bat` does everything: `uv sync` → `scripts/devdb.py start` (PostgreSQL 16 from the `pgserver` wheel,
+  port 54329, data in `%LOCALAPPDATA%/marsool-albarq`) → Tailwind build → migrate → seed_org → runserver.
+  Private media also lives in `%LOCALAPPDATA%/marsool-albarq/media` (never inside OneDrive).
+  Background jobs run eagerly in dev (no Redis); Celery + Redis are used in production only.
+- Production (Phase 10) uses Docker Compose on the Linux server. Never touch host ports 80/443;
+  other projects on the server must not be affected.
 
 ## Stack (locked)
-Python 3.12 · Django 5.2 LTS · PostgreSQL 16 · Redis 7 · Celery · HTMX 2 · Alpine.js 3 ·
-Tailwind (standalone CLI) · WeasyPrint · OpenWA (engine whatsapp-web.js) · Docker Compose.
+Python 3.12 (via uv) · Django 5.2 LTS · PostgreSQL 16 · Redis 7 + Celery (prod) · HTMX 2 · Alpine.js 3 ·
+Tailwind v4 (standalone CLI via pytailwindcss, pinned in run.bat) · **Chromium/Playwright for PDF** (replaces
+WeasyPrint — it needs GTK on Windows) · OpenWA (engine whatsapp-web.js) · Docker Compose (prod only).
 No Node build step for the Django app. HTMX/Alpine/fonts are vendored in `static/`.
 
 ## Domain rules
@@ -44,8 +50,13 @@ No Node build step for the Django app. HTMX/Alpine/fonts are vendored in `static
 - UI is Arabic RTL; user-facing strings wrapped for i18n (`gettext`).
 - Arabic search normalizes: أ/إ/آ→ا, ة→ه, ى→ي, removes tatweel and diacritics.
 
+## Auth notes
+- Custom `accounts.User`: login by email (lower-cased), no username. Roles live on `Membership.role`.
+- Permission matrix: `apps/accounts/permissions.py`. Templates use `can.<perm_with_underscores>`.
+- Create users from the terminal: `manage.py create_user --email … --name … --role owner|admin|manager|sales|viewer`.
+
 ## Quality gates per phase
-- `ruff check` clean, `pytest` green, migrations committed, no TODOs left in phase scope.
+- `.venv/Scripts/ruff check .` + `ruff format --check .` clean, `.venv/Scripts/python -m pytest` green, migrations committed, no TODOs left in phase scope.
 - New models registered in Django admin (superuser emergency access only).
 
 ## Seed data
