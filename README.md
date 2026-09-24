@@ -21,7 +21,7 @@ run.bat
 .venv\Scripts\python manage.py create_user --email you@example.com --name "الاسم" --role owner
 ```
 
-الأدوار: `owner` · `admin` · `manager` · `sales` · `viewer`. كلمة المرور بتتسأل في الترمينال (10 حروف على الأقل).
+الأدوار: `owner` · `admin` · `manager` · `sales` · `viewer`. كلمة المرور بتتسأل في الترمينال (10 حروف على الأقل على السيرفر، و6 على الجهاز).
 بعد كده الـowner يقدر يدعو باقي المستخدمين من صفحة **المستخدمين**.
 
 ## الفحوصات

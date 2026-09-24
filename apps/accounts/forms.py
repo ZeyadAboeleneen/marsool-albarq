@@ -1,4 +1,5 @@
 from django import forms
+from django.conf import settings
 from django.contrib.auth import password_validation
 from django.contrib.auth.forms import AuthenticationForm
 from django.utils.translation import gettext_lazy as _
@@ -52,7 +53,6 @@ class AcceptInviteForm(forms.Form):
         label=_("كلمة المرور"),
         strip=False,
         widget=forms.PasswordInput(attrs={"autocomplete": "new-password", "dir": "ltr"}),
-        help_text=_("10 حروف على الأقل، ومتكونش أرقام بس."),
     )
     password2 = forms.CharField(
         label=_("تأكيد كلمة المرور"),
@@ -63,6 +63,7 @@ class AcceptInviteForm(forms.Form):
     def __init__(self, *args, email, **kwargs):
         super().__init__(*args, **kwargs)
         self.email = email
+        self.fields["password1"].help_text = _("%(n)s حروف أو أرقام على الأقل.") % {"n": settings.PASSWORD_MIN_LENGTH}
 
     def clean(self):
         cleaned = super().clean()
