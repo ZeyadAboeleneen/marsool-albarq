@@ -19,6 +19,9 @@ No Node build step for the Django app. HTMX/Alpine/fonts are vendored in `static
 
 ## Domain rules
 - A quotation is a **price list**: item, unit, unit price. No quantities, no line totals, no grand totals.
+- Products have **no reference price**. Price is entered per quotation; suggest the last price sent to the same customer.
+- Catalog is two-level: `ProductGroup` → `Category` → `Product`. PDF section rows show the Category name only.
+- Owner manages groups/categories/products fully from the UI (add, edit, deactivate, reorder).
 - Quote number format default `{prefix}-{year}/{month:02d}-{seq:02d}` (e.g. AB-2026/09-01);
   sequence resets monthly; configurable in OrganizationSettings.
 - Sending requires a **self-review gate**: the sending user must have opened the final PDF preview
@@ -46,5 +49,6 @@ No Node build step for the Django app. HTMX/Alpine/fonts are vendored in `static
 - New models registered in Django admin (superuser emergency access only).
 
 ## Seed data
-- `python manage.py import_products docs/plan/seed/products.csv --org albarq` (idempotent upsert)
+- `python manage.py import_products docs/plan/seed/products.csv --org albarq` (idempotent upsert; columns:
+  group_order,group,group_description,category_order,category,product_order,name_ar,unit — 72 products)
 - `docs/plan/seed/brand.json` → initial Organization + OrganizationSettings for `albarq`.
