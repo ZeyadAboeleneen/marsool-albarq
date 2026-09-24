@@ -13,6 +13,9 @@ dependencies = [
     "cryptography>=43",
     "pillow>=11",
     "whitenoise>=6.8",
+    "phonenumbers>=9.0.40",
+    "django-simple-history>=3.13.0",
+    "openpyxl>=3.1.5",
 ]
 
 [dependency-groups]

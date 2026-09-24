@@ -55,6 +55,13 @@ No Node build step for the Django app. HTMX/Alpine/fonts are vendored in `static
 - Permission matrix: `apps/accounts/permissions.py`. Templates use `can.<perm_with_underscores>`.
 - Create users from the terminal: `manage.py create_user --email … --name … --role owner|admin|manager|sales|viewer`.
 
+## Customers notes
+- `Customer` tree via `parent` (group → chain → hotel). `recipient_lines()` builds the PDF "To" block.
+- Phones: `apps/core/phones.py` (`to_e164`, `to_local`, `mask`). Search: `Customer.objects.for_org(org).search(q)`.
+- The embedded dev Postgres has no `pg_trgm`; search uses normalized `icontains` (fine at this scale).
+- `manage.py import_customers <xlsx>` (suppliers skipped), `manage.py seed_demo [--remove]` (fake Travco/Jaz data).
+- Rebuild CSS after adding template classes: `.venv/Scripts/tailwindcss -i static/src/app.css -o static/css/app.css --minify`.
+
 ## Quality gates per phase
 - `.venv/Scripts/ruff check .` + `ruff format --check .` clean, `.venv/Scripts/python -m pytest` green, migrations committed, no TODOs left in phase scope.
 - New models registered in Django admin (superuser emergency access only).

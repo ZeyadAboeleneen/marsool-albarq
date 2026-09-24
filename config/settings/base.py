@@ -20,11 +20,13 @@ INSTALLED_APPS = [
     "whitenoise.runserver_nostatic",
     "django.contrib.staticfiles",
     "django_htmx",
+    "simple_history",
     "axes",
     "apps.core",
     "apps.accounts",
     "apps.organizations",
     "apps.dashboard",
+    "apps.customers",
 ]
 
 MIDDLEWARE = [
@@ -38,6 +40,7 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "django_htmx.middleware.HtmxMiddleware",
     "apps.core.middleware.CurrentOrganizationMiddleware",
+    "simple_history.middleware.HistoryRequestMiddleware",
     "axes.middleware.AxesMiddleware",
 ]
 

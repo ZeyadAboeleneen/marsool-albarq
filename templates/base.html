@@ -46,10 +46,10 @@
       </span>
       {% endif %}
       {% if can.customer_view %}
-      <span class="nav-link disabled">
+      <a href="{% url 'customers:list' %}" class="nav-link {% if url_name|slice:':10' == 'customers:' %}active{% endif %}">
         <svg class="size-5" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M4 21V5l8-2v18M12 7h8v14M8 8h.01M8 12h.01M8 16h.01M16 11h.01M16 15h.01"/></svg>
-        {% translate "العملاء" %} <span class="ms-auto text-[10px]">{% translate "قريبًا" %}</span>
-      </span>
+        {% translate "العملاء" %}
+      </a>
       {% endif %}
       {% if can.product_view %}
       <span class="nav-link disabled">

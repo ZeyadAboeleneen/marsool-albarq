@@ -5,6 +5,7 @@ urlpatterns = [
     path("", include("apps.dashboard.urls")),
     path("accounts/", include("apps.accounts.urls")),
     path("org/", include("apps.organizations.urls")),
+    path("customers/", include("apps.customers.urls")),
     path("django-admin/", admin.site.urls),
 ]
 
