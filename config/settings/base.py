@@ -28,6 +28,7 @@ INSTALLED_APPS = [
     "apps.dashboard",
     "apps.customers",
     "apps.catalog",
+    "apps.quotations",
 ]
 
 MIDDLEWARE = [

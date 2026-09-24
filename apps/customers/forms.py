@@ -6,14 +6,16 @@ from django.utils.translation import gettext_lazy as _
 
 from apps.core.phones import to_e164, to_local
 
+from .codes import CODE_RE
 from .models import ChannelType, Contact, ContactChannel, Customer
 
 
 class CustomerForm(forms.ModelForm):
     class Meta:
         model = Customer
-        fields = ["name", "kind", "parent", "city", "area", "address", "tax_id", "notes"]
+        fields = ["name", "code", "kind", "parent", "city", "area", "address", "tax_id", "notes"]
         widgets = {
+            "code": forms.TextInput(attrs={"dir": "ltr", "style": "text-transform:uppercase", "maxlength": 5}),
             "address": forms.Textarea(attrs={"rows": 2}),
             "notes": forms.Textarea(attrs={"rows": 2}),
             "tax_id": forms.TextInput(attrs={"dir": "ltr", "inputmode": "numeric"}),
@@ -28,6 +30,17 @@ class CustomerForm(forms.ModelForm):
         self.fields["parent"].queryset = parents
         self.fields["parent"].label_from_instance = lambda c: c.path_display
         self.fields["parent"].empty_label = _("— مش تابع لحد —")
+
+    def clean_code(self):
+        code = self.cleaned_data["code"].strip().upper()
+        if not code:
+            return code  # auto-suggested on save
+        if not CODE_RE.match(code):
+            raise ValidationError(_("الكود لازم يكون من 2 لـ5 حروف إنجليزي."))
+        dup = Customer.objects.filter(organization=self.instance.organization, code=code).exclude(pk=self.instance.pk)
+        if dup.exists():
+            raise ValidationError(_("الكود ده مستخدم لعميل تاني: %(name)s"), params={"name": dup.first().name})
+        return code
 
     def clean_tax_id(self):
         value = "".join(ch for ch in self.cleaned_data["tax_id"] if ch.isdigit())

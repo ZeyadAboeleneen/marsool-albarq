@@ -19,8 +19,11 @@
       </h1>
       <div class="text-sm text-stone-500">{{ customer.get_kind_display }}{% if customer.city %} · {{ customer.city }}{% endif %}{% if customer.area %} — {{ customer.area }}{% endif %}</div>
     </div>
-    {% if can.customer_edit %}
     <div class="flex flex-wrap gap-2">
+      {% if can.quotation_create and customer.is_active %}
+      <form method="post" action="{% url 'quotations:new' %}">{% csrf_token %}<input type="hidden" name="customer" value="{{ customer.pk }}"><button class="btn-primary">{% translate "عرض سعر جديد" %}</button></form>
+      {% endif %}
+    {% if can.customer_edit %}
       <a href="{% url 'customers:edit' customer.pk %}" class="btn-secondary">{% translate "تعديل" %}</a>
       <a href="{% url 'customers:create' %}?parent={{ customer.pk }}" class="btn-secondary">{% translate "+ فرع / فندق تابع" %}</a>
       <form method="post" action="{% url 'customers:toggle' customer.pk %}"
@@ -28,20 +31,35 @@
         {% csrf_token %}
         <button class="{% if customer.is_active %}btn-danger{% else %}btn-secondary{% endif %}">{% if customer.is_active %}{% translate "إيقاف" %}{% else %}{% translate "تفعيل" %}{% endif %}</button>
       </form>
-    </div>
     {% endif %}
+    </div>
   </div>
 </div>
 
 <div class="grid gap-6 lg:grid-cols-3">
   <div class="space-y-6 lg:col-span-2">
     {% include "customers/partials/contacts.html" %}
+    {% if quotes %}
+    <section class="card">
+      <h2 class="border-b border-stone-100 px-4 py-3 font-bold">{% translate "العروض" %}</h2>
+      <ul class="divide-y divide-stone-100">
+        {% for q in quotes %}
+        <li><a href="{% url 'quotations:detail' q.pk %}" class="flex items-center gap-3 px-4 py-2 text-sm hover:bg-sand/60">
+          <span class="font-mono font-bold" dir="ltr">{% if q.number %}{{ q.display_number }}{% else %}{{ q }}{% endif %}</span>
+          <span class="flex-1 text-xs text-stone-500" dir="ltr">{{ q.issue_date|date:"Y/m/d" }}</span>
+          {% include "quotations/partials/status_badge.html" with s=q.status label=q.get_status_display %}
+        </a></li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% endif %}
   </div>
 
   <aside class="space-y-6">
     <section class="card p-4">
       <h2 class="mb-3 font-bold">{% translate "البيانات" %}</h2>
       <dl class="space-y-2 text-sm">
+        <div class="flex justify-between gap-3"><dt class="text-stone-500">{% translate "كود العميل" %}</dt><dd dir="ltr" class="font-bold">{{ customer.code }}</dd></div>
         <div class="flex justify-between gap-3"><dt class="text-stone-500">{% translate "الرقم الضريبي" %}</dt><dd dir="ltr">{{ customer.tax_id|default:"—" }}</dd></div>
         <div class="flex justify-between gap-3"><dt class="text-stone-500">{% translate "العنوان" %}</dt><dd class="text-end">{{ customer.address|default:"—"|linebreaksbr }}</dd></div>
         {% if customer.notes %}<div><dt class="text-stone-500">{% translate "ملاحظات" %}</dt><dd class="mt-1 whitespace-pre-line">{{ customer.notes }}</dd></div>{% endif %}

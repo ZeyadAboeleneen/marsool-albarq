@@ -30,7 +30,7 @@
   "address_en": "Marina Boulevard, Hurghada, Red Sea",
   "quotation": {
     "number_prefix": "AB",
-    "number_format": "{prefix}-{year}/{month:02d}-{seq:02d}",
+    "number_format": "{code}-{year}/{month:02d}/{day:02d}",
     "validity_days": 30,
     "vat_rate": 14.0,
     "prices_include_vat": false,
@@ -43,8 +43,9 @@
       "التوريد يتم لمقر المنشأة داخل نطاق الخدمة.",
       "جميع الأصناف مطابقة للمواصفات المتفق عليها ويتم فحصها عند الاستلام."
     ],
-    "number_reset": "monthly",
-    "show_quantities": false
+    "number_reset": "per customer code per day (-2, -3 suffix)",
+    "show_quantities": false,
+    "validity_mode": "end_of_month"
   },
   "whatsapp_sender": "01000967017",
   "_products_note": "products.csv has all 72 products, no reference prices"

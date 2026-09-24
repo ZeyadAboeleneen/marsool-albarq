@@ -11,17 +11,48 @@
   {% if can.quotation_create %}
   <div class="card flex flex-col items-start gap-3 p-5 sm:col-span-2 lg:col-span-1">
     <div class="text-lg font-bold">{% translate "عرض سعر جديد" %}</div>
-    <p class="text-sm text-stone-500">{% translate "اختار العميل والمسؤول والأصناف وابعت العرض في دقيقتين." %}</p>
-    <span class="btn-primary opacity-60">{% translate "قريبًا" %}</span>
+    <p class="text-sm text-stone-500">{% translate "اختار العميل والمسؤول والأصناف وحط الأسعار." %}</p>
+    <form method="post" action="{% url 'quotations:new' %}">{% csrf_token %}<button class="btn-primary">{% translate "ابدأ عرض جديد" %}</button></form>
   </div>
   {% endif %}
   <div class="card p-5">
-    <div class="text-sm text-stone-500">{% translate "عروض الشهر" %}</div>
-    <div class="mt-1 text-3xl font-bold">—</div>
+    <div class="text-sm text-stone-500">{% translate "عروض الشهر ده" %}</div>
+    <div class="mt-1 text-3xl font-bold">{{ month_count }}</div>
+    <div class="text-xs text-stone-500">{% blocktranslate %}منهم {{ month_accepted }} مقبول{% endblocktranslate %}</div>
   </div>
   <div class="card p-5">
     <div class="text-sm text-stone-500">{% translate "حالة WhatsApp" %}</div>
     <div class="mt-1 text-sm font-semibold text-stone-400">{% translate "لسه متربطش" %}</div>
   </div>
+</div>
+
+<div class="mt-6 grid gap-6 lg:grid-cols-2">
+  {% if my_drafts %}
+  <section class="card">
+    <h2 class="border-b border-stone-100 px-4 py-3 font-bold">{% translate "كمّل من حيث وقفت" %}</h2>
+    <ul class="divide-y divide-stone-100">
+      {% for d in my_drafts %}
+      <li><a href="{% url 'quotations:edit' d.pk %}" class="flex items-center justify-between px-4 py-2 text-sm hover:bg-sand/60">
+        <span>{% if d.customer %}{{ d.customer.name }}{% else %}{% translate "من غير عميل" %}{% endif %}</span>
+        <span class="text-xs text-stone-400">{{ d.updated_at|timesince }}</span>
+      </a></li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+  {% if recent %}
+  <section class="card">
+    <h2 class="border-b border-stone-100 px-4 py-3 font-bold">{% translate "آخر العروض" %}</h2>
+    <ul class="divide-y divide-stone-100">
+      {% for q in recent %}
+      <li><a href="{% url 'quotations:detail' q.pk %}" class="flex items-center gap-3 px-4 py-2 text-sm hover:bg-sand/60">
+        <span class="font-mono font-bold" dir="ltr">{{ q.display_number }}</span>
+        <span class="flex-1 truncate">{{ q.customer.name }}</span>
+        {% include "quotations/partials/status_badge.html" with s=q.status label=q.get_status_display %}
+      </a></li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
 </div>
 {% endblock %}

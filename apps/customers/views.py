@@ -92,6 +92,7 @@ def customer_detail(request, pk):
     customer = get_object_or_404(_customers(request).select_related("parent", "parent__parent"), pk=pk)
     ctx = _contacts_ctx(request, customer)
     ctx["children"] = _customers(request).filter(parent=customer).order_by("name")
+    ctx["quotes"] = customer.quotations.for_org(request.organization).order_by("-issue_date", "-id")[:20]
     return render(request, "customers/detail.html", ctx)
 
 

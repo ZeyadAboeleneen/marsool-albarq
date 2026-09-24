@@ -89,8 +89,15 @@ def test_seed_org_is_idempotent(db):
     from apps.organizations.models import Organization
 
     call_command("seed_org")
-    call_command("seed_org")
     org = Organization.objects.get(slug="albarq")
+    org.settings.phones = ["0100"]
+    org.settings.save()
+    call_command("seed_org")  # must not clobber UI edits
+    org.settings.refresh_from_db()
+    assert org.settings.phones == ["0100"]
+    call_command("seed_org", force=True)
+    org.settings.refresh_from_db()
     assert org.settings.phones == ["0653451404", "01060777030", "01000967017"]
-    assert org.settings.quote_number_format == "{prefix}-{year}/{month:02d}-{seq:02d}"
+    assert org.settings.quote_number_format == "{code}-{year}/{month:02d}/{day:02d}"
+    assert org.settings.validity_mode == "end_of_month"
     assert len(org.settings.default_terms) == 5

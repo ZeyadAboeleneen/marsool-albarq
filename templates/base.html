@@ -30,20 +30,23 @@
 
     <nav class="flex-1 space-y-1 overflow-y-auto p-3">
       {% if can.quotation_create %}
-        <span class="btn-primary mb-3 w-full opacity-60" title="{% translate 'قريبًا' %}">
-          <svg class="size-5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" d="M12 5v14M5 12h14"/></svg>
-          {% translate "عرض سعر جديد" %}
-        </span>
+        <form method="post" action="{% url 'quotations:new' %}" class="mb-3">
+          {% csrf_token %}
+          <button class="btn-primary w-full">
+            <svg class="size-5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" d="M12 5v14M5 12h14"/></svg>
+            {% translate "عرض سعر جديد" %}
+          </button>
+        </form>
       {% endif %}
       <a href="{% url 'dashboard:home' %}" class="nav-link {% if url_name == 'dashboard:home' %}active{% endif %}">
         <svg class="size-5" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m3 11 9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>
         {% translate "الرئيسية" %}
       </a>
       {% if can.quotation_view %}
-      <span class="nav-link disabled">
+      <a href="{% url 'quotations:list' %}" class="nav-link {% if url_name|slice:':11' == 'quotations:' %}active{% endif %}">
         <svg class="size-5" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M7 3h7l5 5v13H7zM14 3v5h5M10 13h6M10 17h6"/></svg>
-        {% translate "العروض" %} <span class="ms-auto text-[10px]">{% translate "قريبًا" %}</span>
-      </span>
+        {% translate "العروض" %}
+      </a>
       {% endif %}
       {% if can.customer_view %}
       <a href="{% url 'customers:list' %}" class="nav-link {% if url_name|slice:':10' == 'customers:' %}active{% endif %}">

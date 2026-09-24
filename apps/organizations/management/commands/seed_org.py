@@ -13,20 +13,30 @@ DEFAULT_LOGO = Path(settings.BASE_DIR) / "docs" / "plan" / "assets" / "logo.png"
 
 
 class Command(BaseCommand):
-    help = "Create or update an Organization and its settings from brand.json (idempotent)."
+    help = "Create an Organization and its settings from brand.json. Existing ones are left alone unless --force."
 
     def add_arguments(self, parser):
         parser.add_argument("--brand", default=str(DEFAULT_BRAND))
         parser.add_argument("--logo", default=str(DEFAULT_LOGO))
+        parser.add_argument(
+            "--force", action="store_true", help="Overwrite settings of an existing organization with brand.json."
+        )
 
     @transaction.atomic
     def handle(self, *args, **opts):
         brand = json.loads(Path(opts["brand"]).read_text(encoding="utf-8"))
         o, q, c = brand["organization"], brand["quotation"], brand["colors"]
-        org, created = Organization.objects.update_or_create(
+        org, created = Organization.objects.get_or_create(
             slug=o["slug"], defaults={"name_ar": o["name_ar"], "name_en": o.get("name_en", "")}
         )
-        s, _ = OrganizationSettings.objects.get_or_create(organization=org)
+        s, settings_created = OrganizationSettings.objects.get_or_create(organization=org)
+        if not (created or settings_created or opts["force"]):
+            # run.bat calls this on every start: never clobber what was edited in the settings UI.
+            self.stdout.write(f"Organization '{org.slug}' already set up (use --force to reapply brand.json)")
+            return
+        if opts["force"]:
+            org.name_ar, org.name_en = o["name_ar"], o.get("name_en", "")
+            org.save()
         s.primary_color = c["primary"]
         s.dark_color = c["dark"]
         s.neutral_color = c["neutral"]
@@ -39,6 +49,7 @@ class Command(BaseCommand):
         s.quote_number_prefix = q["number_prefix"]
         s.quote_number_format = q["number_format"]
         s.default_validity_days = q["validity_days"]
+        s.validity_mode = q.get("validity_mode", s.validity_mode)
         s.vat_rate = q["vat_rate"]
         s.prices_include_vat = q["prices_include_vat"]
         s.default_intro_text = q.get("intro_text", "")

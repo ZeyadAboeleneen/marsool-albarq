@@ -28,8 +28,9 @@ No Node build step for the Django app. HTMX/Alpine/fonts are vendored in `static
 - Products have **no reference price**. Price is entered per quotation; suggest the last price sent to the same customer.
 - Catalog is two-level: `ProductGroup` → `Category` → `Product`. PDF section rows show the Category name only.
 - Owner manages groups/categories/products fully from the UI (add, edit, deactivate, reorder).
-- Quote number format default `{prefix}-{year}/{month:02d}-{seq:02d}` (e.g. AB-2026/09-01);
-  sequence resets monthly; configurable in OrganizationSettings.
+- Quote number = `{code}-{year}/{month:02d}/{day:02d}` from the customer code and issue date (RG-2026/09/24);
+  2nd+ for the same key gets `-2`, `-3` (QuoteSequence per key). Revisions keep the number: `-R1`, `-R2`.
+  Issue date defaults to today, validity to end of month (`OrganizationSettings.validity_mode`).
 - Sending requires a **self-review gate**: the sending user must have opened the final PDF preview
   (recorded server-side) and ticked the confirmation checkbox. Enforced in the backend, not only the UI.
 - WhatsApp sender number: 01000967017 (configured through settings UI, never hardcoded).
@@ -68,6 +69,14 @@ No Node build step for the Django app. HTMX/Alpine/fonts are vendored in `static
 - `import_products` only creates missing rows (never overwrites UI edits). Don't run it automatically.
 - Reorder endpoint `catalog:reorder` (kind=product|category|group, ids in order, same parent only).
 - Editing needs `product.edit` (manager+). Sortable.js vendored in `static/vendor/`.
+
+## Quotations notes
+- Business rules live in `apps/quotations/services.py` (new_draft, add_product/category/custom, price_hints,
+  next_number, finalize, create_revision, duplicate). Views stay thin.
+- Items carry snapshots (description, unit, category_name, section_order, item_order) → PDF order/grouping.
+- `QuotationItem.save/delete` raise `ImmutableQuotationError` once the quotation isn't a draft.
+- Builder = one page of HTMX partials (party, items, meta, summary, picker) wired by the `itemsChanged` event.
+- `seed_org` never overwrites an existing org's settings unless `--force` (run.bat calls it on every start).
 
 ## Quality gates per phase
 - `.venv/Scripts/ruff check .` + `ruff format --check .` clean, `.venv/Scripts/python -m pytest` green, migrations committed, no TODOs left in phase scope.

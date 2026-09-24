@@ -8,6 +8,8 @@ from apps.core.arabic import normalize_arabic
 from apps.core.models import OrgQuerySet, TenantScopedModel
 from apps.core.phones import to_e164, to_local
 
+from .codes import suggest_code
+
 
 class CustomerKind(models.TextChoices):
     GROUP = "group", _("مجموعة / شركة أم")
@@ -49,6 +51,12 @@ class CustomerQuerySet(OrgQuerySet):
 class Customer(TenantScopedModel):
     name = models.CharField(_("الاسم"), max_length=200)
     name_normalized = models.CharField(max_length=200, editable=False, db_index=True)
+    code = models.CharField(
+        _("كود العميل"),
+        max_length=5,
+        blank=True,
+        help_text=_("حرفين أو أكتر بالإنجليزي، بيتكتبوا في رقم العرض: RG-2026/09/24"),
+    )
     kind = models.CharField(_("النوع"), max_length=20, choices=CustomerKind.choices, default=CustomerKind.HOTEL)
     parent = models.ForeignKey(
         "self",
@@ -77,6 +85,7 @@ class Customer(TenantScopedModel):
             models.UniqueConstraint(
                 fields=["organization", "name", "parent"], name="uniq_customer_name_in_parent", nulls_distinct=False
             ),
+            models.UniqueConstraint(fields=["organization", "code"], condition=~Q(code=""), name="uniq_customer_code"),
         ]
 
     def __str__(self):
@@ -85,6 +94,14 @@ class Customer(TenantScopedModel):
     def save(self, *args, **kwargs):
         self.name = " ".join(self.name.split())
         self.name_normalized = normalize_arabic(self.name)
+        self.code = (self.code or "").strip().upper()
+        if not self.code:
+            taken = set(
+                Customer.objects.filter(organization_id=self.organization_id)
+                .exclude(pk=self.pk)
+                .values_list("code", flat=True)
+            )
+            self.code = suggest_code(self.name, taken)
         super().save(*args, **kwargs)
 
     def clean(self):

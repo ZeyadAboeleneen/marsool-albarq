@@ -6,7 +6,13 @@ from django.utils.translation import gettext_lazy as _
 
 from apps.core.models import BaseModel
 
-DEFAULT_QUOTE_NUMBER_FORMAT = "{prefix}-{year}/{month:02d}-{seq:02d}"
+# {code} = customer code (RG). A second quotation for the same code+date gets "-2", "-3", ...
+DEFAULT_QUOTE_NUMBER_FORMAT = "{code}-{year}/{month:02d}/{day:02d}"
+
+
+class ValidityMode(models.TextChoices):
+    END_OF_MONTH = "end_of_month", _("لحد آخر الشهر")
+    DAYS = "days", _("عدد أيام")
 
 
 class Organization(BaseModel):
@@ -42,6 +48,9 @@ class OrganizationSettings(BaseModel):
     address_en = models.CharField(_("العنوان بالإنجليزي"), max_length=300, blank=True)
     quote_number_prefix = models.CharField(_("بادئة رقم العرض"), max_length=10, default="AB")
     quote_number_format = models.CharField(_("صيغة رقم العرض"), max_length=80, default=DEFAULT_QUOTE_NUMBER_FORMAT)
+    validity_mode = models.CharField(
+        _("سريان العرض"), max_length=20, choices=ValidityMode.choices, default=ValidityMode.END_OF_MONTH
+    )
     default_validity_days = models.PositiveSmallIntegerField(_("مدة سريان العرض (أيام)"), default=30)
     vat_rate = models.DecimalField(_("نسبة الضريبة %"), max_digits=5, decimal_places=2, default=Decimal("14.00"))
     prices_include_vat = models.BooleanField(_("الأسعار شاملة الضريبة"), default=False)
@@ -59,6 +68,15 @@ class OrganizationSettings(BaseModel):
 
     def __str__(self):
         return f"{self.organization} settings"
+
+    def default_valid_until(self, issue_date):
+        import calendar
+        from datetime import timedelta
+
+        if self.validity_mode == ValidityMode.DAYS:
+            return issue_date + timedelta(days=self.default_validity_days)
+        last_day = calendar.monthrange(issue_date.year, issue_date.month)[1]
+        return issue_date.replace(day=last_day)
 
 
 class Role(models.TextChoices):
