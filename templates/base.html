@@ -52,10 +52,10 @@
       </a>
       {% endif %}
       {% if can.product_view %}
-      <span class="nav-link disabled">
+      <a href="{% url 'catalog:index' %}" class="nav-link {% if url_name|slice:':8' == 'catalog:' %}active{% endif %}">
         <svg class="size-5" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m21 8-9-5-9 5 9 5 9-5zM3 8v8l9 5 9-5V8M12 13v8"/></svg>
-        {% translate "المنتجات" %} <span class="ms-auto text-[10px]">{% translate "قريبًا" %}</span>
-      </span>
+        {% translate "المنتجات" %}
+      </a>
       {% endif %}
       {% if can.user_manage or can.settings_manage or can.audit_view %}
       <div class="px-3 pb-1 pt-4 text-xs font-semibold text-stone-400">{% translate "الإدارة" %}</div>

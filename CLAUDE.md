@@ -62,6 +62,13 @@ No Node build step for the Django app. HTMX/Alpine/fonts are vendored in `static
 - `manage.py import_customers <xlsx>` (suppliers skipped), `manage.py seed_demo [--remove]` (fake Travco/Jaz data).
 - Rebuild CSS after adding template classes: `.venv/Scripts/tailwindcss -i static/src/app.css -o static/css/app.css --minify`.
 
+## Catalog notes
+- `ProductGroup` → `Category` (printed as pink section rows) → `Product` (+ `Unit`). No prices on products.
+- Default ordering of `Product` = group order → category order → product order = PDF order.
+- `import_products` only creates missing rows (never overwrites UI edits). Don't run it automatically.
+- Reorder endpoint `catalog:reorder` (kind=product|category|group, ids in order, same parent only).
+- Editing needs `product.edit` (manager+). Sortable.js vendored in `static/vendor/`.
+
 ## Quality gates per phase
 - `.venv/Scripts/ruff check .` + `ruff format --check .` clean, `.venv/Scripts/python -m pytest` green, migrations committed, no TODOs left in phase scope.
 - New models registered in Django admin (superuser emergency access only).
