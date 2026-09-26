@@ -110,13 +110,31 @@ def test_email_settings_save_keeps_password_encrypted(client, world):
     assert "app-pass" not in html  # never rendered back
     data = {
         "is_active": "on", "display_name": "البرق", "from_email": "new@example.com", "host": "smtp.gmail.com",
-        "port": "587", "security": "tls", "username": "new@example.com", "password": "",
+        "port": "587", "security": "tls", "smtp_user": "new@example.com", "smtp_secret": "",
     }  # fmt: skip
     assert client.post(reverse("messaging:email_settings"), data).status_code == 302
     cfg = SendingChannelConfig.objects.get(organization=world["org"], kind="email")
     assert cfg.config["password"] == "app-pass"  # blank = keep
     assert cfg.config["username"] == "new@example.com"
     assert "app-pass" not in cfg.config_encrypted
+
+
+def test_gmail_app_password_is_validated(client, world):
+    client.force_login(world["owner"])
+    base = {
+        "is_active": "on", "display_name": "البرق", "from_email": "elbaark.company@gmail.com",
+        "host": "smtp.gmail.com", "port": "587", "security": "tls", "smtp_user": "elbaark.company@gmail.com",
+    }  # fmt: skip
+    r = client.post(reverse("messaging:email_settings"), {**base, "smtp_secret": "albarq5"})
+    assert r.status_code == 200 and "16 حرف" in r.content.decode()
+    r = client.post(reverse("messaging:email_settings"), {**base, "smtp_user": ".....", "smtp_secret": ""})
+    assert "الإيميل كامل" in r.content.decode()
+    r = client.post(reverse("messaging:email_settings"), {**base, "smtp_secret": "abcd efgh ijkl mnop"})
+    assert r.status_code == 302
+    cfg = SendingChannelConfig.objects.get(organization=world["org"], kind="email")
+    assert cfg.config["password"] == "abcdefghijklmnop"  # spaces removed
+    html = client.get(reverse("messaging:email_settings")).content.decode()
+    assert 'autocomplete="off"' in html and 'name="password"' not in html
 
 
 def test_send_test_email(client, world):

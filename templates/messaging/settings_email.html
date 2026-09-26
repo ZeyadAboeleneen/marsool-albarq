@@ -6,7 +6,7 @@
 {% include "partials/settings_tabs.html" %}
 
 <div class="grid gap-6 lg:grid-cols-3">
-  <form method="post" class="card space-y-4 p-4 sm:p-6 lg:col-span-2" novalidate>
+  <form method="post" class="card space-y-4 p-4 sm:p-6 lg:col-span-2" novalidate autocomplete="off">
     {% csrf_token %}
     <div class="flex flex-wrap items-center justify-between gap-2">
       <h2 class="font-bold">{% translate "إعدادات SMTP" %}</h2>
@@ -22,9 +22,9 @@
         {% include "partials/field.html" with field=form.port %}
         {% include "partials/field.html" with field=form.security %}
       </div>
-      {% include "partials/field.html" with field=form.username %}
+      {% include "partials/field.html" with field=form.smtp_user %}
       <div>
-        {% include "partials/field.html" with field=form.password %}
+        {% include "partials/field.html" with field=form.smtp_secret %}
         {% if has_password %}<p class="mt-1 text-xs font-semibold text-green-700">{% translate "فيه كلمة مرور متسجلة ✓" %}</p>{% endif %}
       </div>
     </div>

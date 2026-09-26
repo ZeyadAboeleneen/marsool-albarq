@@ -13,23 +13,44 @@ class EmailSettingsForm(forms.Form):
     host = forms.CharField(label=_("سيرفر SMTP"), max_length=200, widget=forms.TextInput(attrs={"dir": "ltr"}))
     port = forms.IntegerField(label=_("Port"), min_value=1, max_value=65535, initial=587)
     security = forms.ChoiceField(label=_("التشفير"), choices=SECURITY_CHOICES, initial="tls")
-    username = forms.CharField(label=_("اسم المستخدم"), max_length=200, widget=forms.TextInput(attrs={"dir": "ltr"}))
-    password = forms.CharField(
-        label=_("كلمة المرور / App Password"),
+    # Field names/attributes chosen so the browser doesn't autofill the Marsool login into them.
+    smtp_user = forms.CharField(
+        label=_("اسم المستخدم (الإيميل كامل)"),
+        max_length=200,
+        widget=forms.TextInput(attrs={"dir": "ltr", "autocomplete": "off", "data-lpignore": "true"}),
+    )
+    smtp_secret = forms.CharField(
+        label=_("كلمة مرور التطبيق (App Password)"),
         required=False,
         strip=True,
-        widget=forms.PasswordInput(attrs={"dir": "ltr", "autocomplete": "new-password"}, render_value=False),
+        widget=forms.TextInput(
+            attrs={"dir": "ltr", "autocomplete": "off", "data-lpignore": "true", "spellcheck": "false",
+                   "placeholder": "xxxx xxxx xxxx xxxx", "style": "-webkit-text-security: disc"}
+        ),
         help_text=_("سيبها فاضية لو مش عايز تغيّرها. بتتخزن متشفرة."),
-    )
+    )  # fmt: skip
 
     def __init__(self, *args, has_password=False, **kwargs):
         super().__init__(*args, **kwargs)
         self.has_password = has_password
 
+    def clean_smtp_secret(self):
+        return "".join(self.cleaned_data["smtp_secret"].split())  # Google shows it in groups of 4
+
     def clean(self):
         cleaned = super().clean()
-        if cleaned.get("is_active") and not (cleaned.get("password") or self.has_password):
-            self.add_error("password", _("اكتب كلمة المرور عشان تفعّل الإرسال."))
+        secret, host, user = cleaned.get("smtp_secret", ""), cleaned.get("host", ""), cleaned.get("smtp_user", "")
+        if cleaned.get("is_active") and not (secret or self.has_password):
+            self.add_error("smtp_secret", _("اكتب كلمة مرور التطبيق عشان تفعّل الإرسال."))
+        if "gmail.com" in host:
+            if user and "@" not in user:
+                self.add_error("smtp_user", _("مع Gmail اسم المستخدم هو الإيميل كامل."))
+            if secret and len(secret) != 16:
+                self.add_error(
+                    "smtp_secret",
+                    _("App Password بتاع Gmail بيبقى 16 حرف بالظبط (اللي اتكتب %(n)s). مش كلمة سر الإيميل.")
+                    % {"n": len(secret)},
+                )
         return cleaned
 
 

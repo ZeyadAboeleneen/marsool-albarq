@@ -146,13 +146,14 @@ def email_settings(request):
         "host": current.get("host", "smtp.gmail.com"),
         "port": current.get("port", 587),
         "security": current.get("security", "tls"),
-        "username": current.get("username", ""),
+        "smtp_user": current.get("username", ""),
     }
     form = EmailSettingsForm(request.POST or None, initial=initial, has_password=bool(current.get("password")))
     if request.method == "POST" and form.is_valid():
         d = form.cleaned_data
-        new = {k: d[k] for k in ("from_email", "host", "port", "security", "username")}
-        new["password"] = d["password"] or current.get("password", "")
+        new = {k: d[k] for k in ("from_email", "host", "port", "security")}
+        new["username"] = d["smtp_user"]
+        new["password"] = d["smtp_secret"] or current.get("password", "")
         cfg.config = new
         cfg.is_active = d["is_active"]
         cfg.display_name = d["display_name"]
