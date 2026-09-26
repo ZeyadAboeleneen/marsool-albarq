@@ -15,7 +15,8 @@
       </div>
     </div>
     <div class="flex flex-wrap gap-2">
-      <button class="btn-secondary" disabled title="{% translate 'في المرحلة الجاية' %}">{% translate "PDF" %}</button>
+      <a href="{% url 'quotations:pdf' q.pk %}" target="_blank" class="btn-secondary">{% translate "عرض PDF" %}</a>
+      <a href="{% url 'quotations:pdf' q.pk %}?download=1" class="btn-secondary">{% translate "تحميل" %}</a>
       <button class="btn-primary" disabled title="{% translate 'في المرحلة الجاية' %}">{% translate "إرسال" %}</button>
       {% if can.quotation_create %}
         {% if q.status != "cancelled" and q.status != "superseded" %}

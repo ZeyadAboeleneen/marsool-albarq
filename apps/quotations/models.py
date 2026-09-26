@@ -30,6 +30,10 @@ class QuoteSequence(TenantScopedModel):
         return f"{self.key}: {self.last_value}"
 
 
+def pdf_upload_to(instance, filename):
+    return f"org_{instance.organization_id}/quotations/{instance.issue_date:%Y}/{filename}"
+
+
 class QuotationStatus(models.TextChoices):
     DRAFT = "draft", _("مسودة")
     FINALIZED = "finalized", _("صادر")
@@ -100,6 +104,8 @@ class Quotation(TenantScopedModel):
         settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
     )
     reviewed_at = models.DateTimeField(null=True, blank=True)
+    pdf_file = models.FileField(upload_to=pdf_upload_to, blank=True, max_length=255)
+    pdf_generated_at = models.DateTimeField(null=True, blank=True)
 
     objects = QuotationQuerySet.as_manager()
 

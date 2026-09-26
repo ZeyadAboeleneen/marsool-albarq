@@ -16,6 +16,7 @@ dependencies = [
     "phonenumbers>=9.0.40",
     "django-simple-history>=3.13.0",
     "openpyxl>=3.1.5",
+    "playwright>=1.63.0",
 ]
 
 [dependency-groups]
@@ -28,6 +29,7 @@ dev = [
     "pre-commit>=4",
     "pytailwindcss>=0.3.1",
     "tzdata>=2026.4",
+    "pypdf>=6.19.0",
 ]
 
 [tool.uv]

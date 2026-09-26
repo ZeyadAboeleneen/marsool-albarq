@@ -9,6 +9,7 @@ from django.utils import timezone
 from django.utils.translation import gettext as _
 
 from apps.catalog.models import Product, Unit
+from apps.documents.pdf import generate_final_pdf_safely
 from apps.organizations.models import DEFAULT_QUOTE_NUMBER_FORMAT, OrganizationSettings
 
 from .models import (
@@ -286,4 +287,6 @@ def finalize(q: Quotation, user) -> Quotation:
     q.finalized_by = user
     q.finalized_at = timezone.now()
     q.save()
+    # Render the stored PDF once the number is committed (Celery in production, inline locally).
+    transaction.on_commit(lambda: generate_final_pdf_safely(q.pk))
     return q

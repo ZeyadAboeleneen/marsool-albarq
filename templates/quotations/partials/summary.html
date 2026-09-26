@@ -13,7 +13,7 @@
   {% endif %}
   <div class="flex flex-wrap items-center justify-end gap-2">
     <span class="me-auto text-xs text-stone-500">{% translate "بعد الإصدار العرض بيتقفل، وأي تعديل بيبقى «نسخة معدّلة»." %}</span>
-    <button type="button" class="btn-secondary" disabled title="{% translate 'في المرحلة الجاية' %}">{% translate "معاينة PDF" %}</button>
+    <a href="{% url 'quotations:preview' q.pk %}" target="_blank" class="btn-secondary">{% translate "معاينة PDF" %}</a>
     <form method="post" action="{% url 'quotations:finalize' q.pk %}" onsubmit="return confirm('{% translate 'إصدار العرض؟ بعد كده مش هينفع يتعدّل.' %}')">
       {% csrf_token %}
       <button class="btn-primary" {% if problems %}disabled{% endif %}>{% translate "إصدار العرض ✓" %}</button>

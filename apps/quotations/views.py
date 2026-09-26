@@ -5,7 +5,7 @@ from django.contrib import messages
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.paginator import Paginator
 from django.db.models import Prefetch, Q
-from django.http import Http404
+from django.http import FileResponse, Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.dateparse import parse_date
 from django.utils.translation import gettext as _
@@ -16,6 +16,7 @@ from apps.accounts.permissions import has_perm, require_perm
 from apps.catalog.models import Category, Product, ProductGroup
 from apps.customers.forms import ContactForm
 from apps.customers.models import Contact, Customer, CustomerKind
+from apps.documents import pdf as pdfdoc
 
 from . import services
 from .forms import CustomItemForm, MetaForm, parse_price
@@ -452,6 +453,39 @@ def delete_draft(request, pk):
     q.delete()
     messages.success(request, _("المسودة اتمسحت."))
     return redirect("quotations:list")
+
+
+# PDF
+
+
+@require_perm("quotation.view")
+def preview_pdf(request, pk):
+    """Draft preview with a watermark, rendered on the fly and never stored."""
+    q = get_object_or_404(_quotes(request).select_related("organization__settings", "customer", "contact"), pk=pk)
+    if not q.is_editable:
+        return redirect("quotations:pdf", pk=q.pk)
+    if not has_perm(request.membership, "quotation.create"):
+        raise PermissionDenied
+    data = pdfdoc.render_pdf(q, draft=True)
+    resp = HttpResponse(data, content_type="application/pdf")
+    resp["Content-Disposition"] = "inline"
+    return resp
+
+
+@require_perm("quotation.view")
+def final_pdf(request, pk):
+    """The stored PDF of an issued quotation (re-rendered from snapshots if the file is missing)."""
+    q = get_object_or_404(_quotes(request).select_related("organization__settings", "customer", "contact"), pk=pk)
+    if q.is_editable:
+        return redirect("quotations:preview", pk=q.pk)
+    if not q.pdf_file or not q.pdf_file.storage.exists(q.pdf_file.name):
+        pdfdoc.generate_final_pdf(q)
+    return FileResponse(
+        q.pdf_file.open("rb"),
+        content_type="application/pdf",
+        as_attachment=bool(request.GET.get("download")),
+        filename=pdfdoc.download_name(q),
+    )
 
 
 # after issue
