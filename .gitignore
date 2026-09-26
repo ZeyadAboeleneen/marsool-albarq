@@ -10,3 +10,4 @@ tmp/
 .pgdata/
 *.log
 whatsapp-gateway/node_modules/
+whatsapp-gateway/.wwebjs_cache/

@@ -24,6 +24,7 @@ start "" http://127.0.0.1:8000
 goto :eof
 
 :whatsapp
+if exist "%ProgramFiles%\nodejs\node.exe" set "PATH=%ProgramFiles%\nodejs;%PATH%"
 where node >/dev/null 2>/dev/null || (echo   Node.js not found - WhatsApp disabled, email still works. & goto :eof)
 curl -s -o nul http://127.0.0.1:3310/health && (echo   WhatsApp gateway already running. & goto :eof)
 if not exist whatsapp-gateway\node_modules (
