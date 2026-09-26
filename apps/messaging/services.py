@@ -15,6 +15,7 @@ from apps.core.phones import mask
 from apps.documents import pdf as pdfdoc
 from apps.quotations.models import QuotationStatus
 
+from . import whatsapp
 from .models import (
     SUCCESS_STATUSES,
     ChannelKind,
@@ -122,6 +123,16 @@ def email_ready(org) -> bool:
     return email_provider(org)[0] is not None
 
 
+def whatsapp_ready(org) -> bool:
+    cfg = SendingChannelConfig.objects.for_org(org).filter(kind=ChannelKind.WHATSAPP, is_active=True).first()
+    return bool(cfg) and whatsapp.status(org).get("state") == "ready"
+
+
+def whatsapp_templates(org):
+    s = getattr(org, "settings", None)
+    return (s.default_whatsapp_message if s else "") or DEFAULT_WHATSAPP
+
+
 # --- sending -------------------------------------------------------------------------------
 
 
@@ -133,7 +144,9 @@ class Recipient:
     contact_channel_id: int | None = None
 
 
-def create_deliveries(q, user, recipients: list[Recipient], *, subject: str, body: str, confirmed: bool):
+def create_deliveries(
+    q, user, recipients: list[Recipient], *, subject: str, body: str, confirmed: bool, wa_body: str = ""
+):
     """Validate the gate and create queued deliveries. Dispatch happens after commit."""
     if q.status not in SENDABLE_STATUSES:
         raise SendError(_("العرض ده مينفعش يتبعت في حالته الحالية."))
@@ -145,8 +158,8 @@ def create_deliveries(q, user, recipients: list[Recipient], *, subject: str, bod
         raise SendError(_("اختار مستلم واحد على الأقل."))
     if any(r.channel == ChannelKind.EMAIL for r in recipients) and not email_ready(q.organization):
         raise SendError(_("إعدادات الإيميل مش متظبطة. كلّم مدير النظام."))
-    if any(r.channel != ChannelKind.EMAIL for r in recipients):
-        raise SendError(_("الإرسال بالواتساب لسه مش متاح."))
+    if any(r.channel == ChannelKind.WHATSAPP for r in recipients) and not whatsapp_ready(q.organization):
+        raise SendError(_("الواتساب مش متصل. اربطه من الإعدادات، أو ابعت بالإيميل."))
 
     deliveries = []
     with transaction.atomic():
@@ -159,8 +172,8 @@ def create_deliveries(q, user, recipients: list[Recipient], *, subject: str, bod
                     recipient=r.value,
                     recipient_name=r.name,
                     contact_channel_id=r.contact_channel_id,
-                    subject=subject,
-                    message_text=body,
+                    subject=subject if r.channel == ChannelKind.EMAIL else "",
+                    message_text=body if r.channel == ChannelKind.EMAIL else (wa_body or body),
                     sent_by=user,
                     review_confirmed=True,
                 )
@@ -222,19 +235,48 @@ def process_delivery(delivery_id: int):
     return d
 
 
+def _pdf_bytes(q):
+    if not q.pdf_file or not q.pdf_file.storage.exists(q.pdf_file.name):
+        pdfdoc.generate_final_pdf(q)
+    with q.pdf_file.open("rb") as fh:
+        return fh.read()
+
+
+_wa_lock = threading.Lock()
+
+
+def _wait_for_whatsapp_slot(org):
+    """At most one WhatsApp message every WA_RATE_LIMIT_SECONDS from the same number (anti-ban)."""
+    gap = getattr(settings, "WA_RATE_LIMIT_SECONDS", 20)
+    last = (
+        Delivery.objects.filter(organization=org, channel=ChannelKind.WHATSAPP, sent_at__isnull=False)
+        .order_by("-sent_at")
+        .values_list("sent_at", flat=True)
+        .first()
+    )
+    if last and gap:
+        wait = gap - (timezone.now() - last).total_seconds()
+        if wait > 0:
+            time.sleep(wait)
+
+
 def _send_once(d, q):
     if d.channel == ChannelKind.EMAIL:
         provider, cfg = email_provider(q.organization)
         if provider is None:
             return ProviderResult(ok=False, error=_("إعدادات الإيميل مش متظبطة."))
-        if not q.pdf_file or not q.pdf_file.storage.exists(q.pdf_file.name):
-            pdfdoc.generate_final_pdf(q)
-        with q.pdf_file.open("rb") as fh:
-            data = fh.read()
-        result = provider.send(d, data, pdfdoc.download_name(q))
+        result = provider.send(d, _pdf_bytes(q), pdfdoc.download_name(q))
         _update_channel_status(cfg, result)
         return result
-    return ProviderResult(ok=False, error=_("القناة دي لسه مش متاحة."))
+    if d.channel == ChannelKind.WHATSAPP:
+        data = _pdf_bytes(q)
+        with _wa_lock:
+            _wait_for_whatsapp_slot(q.organization)
+            result = whatsapp.WhatsAppProvider(q.organization).send(d, data, pdfdoc.download_name(q))
+            if result.ok:  # stamp now so the next message in this process waits its turn
+                Delivery.objects.filter(pk=d.pk).update(sent_at=timezone.now())
+        return result
+    return ProviderResult(ok=False, error=_("القناة دي مش متاحة."))
 
 
 def _update_channel_status(cfg, result):
@@ -266,6 +308,73 @@ def retry(delivery, user):
     delivery.sent_by = user
     delivery.save(update_fields=["sent_by", "updated_at"])
     _schedule([delivery.pk])
+
+
+def fallback_to_email(delivery, user):
+    """A failed WhatsApp message → send the same quotation by email to the same contact."""
+    from apps.customers.models import ChannelType, ContactChannel
+
+    if delivery.channel != ChannelKind.WHATSAPP or delivery.status != DeliveryStatus.FAILED:
+        raise SendError(_("ده مش واتساب فاشل."))
+    contact_id = delivery.contact_channel.contact_id if delivery.contact_channel_id else None
+    email = (
+        ContactChannel.objects.filter(contact_id=contact_id, type=ChannelType.EMAIL).order_by("-is_primary").first()
+        if contact_id
+        else None
+    )
+    if email is None:
+        raise SendError(_("المسؤول ده ملوش إيميل."))
+    q = delivery.quotation
+    subject_tpl, body_tpl = email_templates(q.organization)
+    variables = variables_for(q, email.contact, user)
+    return create_deliveries(
+        q,
+        user,
+        [Recipient(ChannelKind.EMAIL, email.value, delivery.recipient_name, email.pk)],
+        subject=render_template(subject_tpl, variables),
+        body=render_template(body_tpl, variables),
+        confirmed=True,
+    )
+
+
+# --- gateway webhooks ----------------------------------------------------------------------
+
+ACK_STATUS = {2: DeliveryStatus.DELIVERED, 3: DeliveryStatus.READ, 4: DeliveryStatus.READ}
+_STATUS_RANK = {DeliveryStatus.SENT: 1, DeliveryStatus.DELIVERED: 2, DeliveryStatus.READ: 3}
+
+
+def apply_ack(message_id: str, ack: int):
+    new = ACK_STATUS.get(ack)
+    if not new or not message_id:
+        return 0
+    updated = 0
+    for d in Delivery.objects.filter(channel=ChannelKind.WHATSAPP, provider_message_id=message_id):
+        if _STATUS_RANK.get(d.status, 0) >= _STATUS_RANK[new]:
+            continue
+        d.status = new
+        now = timezone.now()
+        if new == DeliveryStatus.DELIVERED:
+            d.delivered_at = now
+        else:
+            d.read_at = now
+            d.delivered_at = d.delivered_at or now
+        d.save(update_fields=["status", "delivered_at", "read_at", "updated_at"])
+        updated += 1
+    return updated
+
+
+def apply_gateway_status(org_id, state: str, me: str | None = None, error: str = ""):
+    cfg = SendingChannelConfig.objects.filter(organization_id=org_id, kind=ChannelKind.WHATSAPP).first()
+    if cfg is None:
+        return
+    cfg.status = {"ready": ChannelStatus.CONNECTED, "disconnected": ChannelStatus.DISCONNECTED}.get(
+        state, ChannelStatus.ERROR
+    )
+    if me:
+        cfg.sender_identity = "0" + me[2:] if me.startswith("20") else me
+    cfg.last_error = error
+    cfg.last_checked_at = timezone.now()
+    cfg.save(update_fields=["status", "sender_identity", "last_error", "last_checked_at", "updated_at"])
 
 
 def any_success(q) -> bool:

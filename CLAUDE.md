@@ -20,7 +20,8 @@ Read `docs/plan/README.md` first, then the files relevant to the current phase.
 ## Stack (locked)
 Python 3.12 (via uv) · Django 5.2 LTS · PostgreSQL 16 · Redis 7 + Celery (prod) · HTMX 2 · Alpine.js 3 ·
 Tailwind v4 (standalone CLI via pytailwindcss, pinned in run.bat) · **Chromium/Playwright for PDF** (replaces
-WeasyPrint — it needs GTK on Windows) · OpenWA (engine whatsapp-web.js) · Docker Compose (prod only).
+WeasyPrint — it needs GTK on Windows) · **WhatsApp: local Node gateway `whatsapp-gateway/` (whatsapp-web.js)**
+(replaces the OpenWA container; runs without Docker) · Docker Compose (prod only).
 No Node build step for the Django app. HTMX/Alpine/fonts are vendored in `static/`.
 
 ## Domain rules
@@ -85,6 +86,15 @@ No Node build step for the Django app. HTMX/Alpine/fonts are vendored in `static
 - Dispatch: background thread locally, `MESSAGING_SYNC=True` in tests, Celery in production (Phase 10).
   Temporary SMTP errors retry after `MESSAGING_RETRY_DELAYS`; auth errors don't.
 - The final PDF view is `xframe_options_sameorigin` so it can be embedded.
+
+## WhatsApp notes
+- `whatsapp-gateway/server.js` (Express + whatsapp-web.js) listens on 127.0.0.1:3310, API key `WA_GATEWAY_KEY`
+  from `.env` (it reads the same file). One session per org (`/sessions/<org_id>`), LocalAuth data in
+  `%LOCALAPPDATA%/marsool-albarq/whatsapp`. Uses Playwright's `chrome-headless-shell` (full chrome.exe can't
+  be spawned from Node on this machine). `run.bat` installs its node_modules once and starts it minimized.
+- Django side: `apps/messaging/whatsapp.py` (httpx; tests inject `WA_GATEWAY_TRANSPORT`), webhook
+  `/integrations/whatsapp/webhook/` verified by HMAC-SHA256 of the body. Acks: 2 → delivered, 3/4 → read.
+- Anti-ban: one message per `WA_RATE_LIMIT_SECONDS` (20) per org; manual sending only; email fallback button.
 
 ## Quality gates per phase
 - `.venv/Scripts/ruff check .` + `ruff format --check .` clean, `.venv/Scripts/python -m pytest` green, migrations committed, no TODOs left in phase scope.

@@ -33,7 +33,7 @@
 | Database | PostgreSQL 16 |
 | Background jobs | Celery + Redis 7 |
 | PDF | WeasyPrint |
-| WhatsApp | OpenWA gateway (engine: whatsapp-web.js)، رقم الإرسال `01000967017` |
+| WhatsApp | بوابة Node محلية جوه المشروع (`whatsapp-gateway/`، engine: whatsapp-web.js) بدل OpenWA عشان مفيش Docker، رقم الإرسال `01000967017` |
 | Email | SMTP (قابل للتغيير من الإعدادات) |
 | Multi-tenancy | Shared database + `organization_id` على كل جدول |
 | مرجع الهوية في الـPDF | عرض السعر الحالي (الوصف، الأرقام، الشكل) + ألوان وخطوط الـGuideline |

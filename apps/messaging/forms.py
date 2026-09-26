@@ -66,5 +66,15 @@ class TemplatesForm(forms.ModelForm):
 
 class SendForm(forms.Form):
     subject = forms.CharField(label=_("عنوان الإيميل"), max_length=250)
-    body = forms.CharField(label=_("نص الرسالة"), widget=forms.Textarea(attrs={"rows": 9}))
+    body = forms.CharField(label=_("نص الإيميل"), widget=forms.Textarea(attrs={"rows": 9}))
+    wa_body = forms.CharField(label=_("رسالة الواتساب"), required=False, widget=forms.Textarea(attrs={"rows": 5}))
     confirm = forms.BooleanField(label=_("راجعت الأصناف والأسعار بنفسي"), required=False)
+
+
+class WhatsAppTestForm(forms.Form):
+    to = forms.CharField(label=_("ابعت رسالة تجربة لرقم"), max_length=20, widget=forms.TextInput(attrs={"dir": "ltr"}))
+
+    def clean_to(self):
+        from apps.core.phones import to_e164
+
+        return to_e164(self.cleaned_data["to"])

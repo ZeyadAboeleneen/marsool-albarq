@@ -1,7 +1,11 @@
+import json
+
 from django.contrib import messages
+from django.http import HttpResponseBadRequest, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils.translation import gettext as _
+from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
 from apps.accounts.permissions import require_perm
@@ -9,8 +13,8 @@ from apps.customers.models import ChannelType, Contact
 from apps.organizations.models import OrganizationSettings
 from apps.quotations.models import Quotation
 
-from . import services
-from .forms import EmailSettingsForm, SendForm, TemplatesForm
+from . import services, whatsapp
+from .forms import EmailSettingsForm, SendForm, TemplatesForm, WhatsAppTestForm
 from .models import ChannelKind, ChannelStatus, Delivery, SendingChannelConfig
 
 
@@ -28,15 +32,22 @@ def _recipient_options(request, q):
         .prefetch_related("channels")
         .order_by("-is_primary", "name")
     )
+    email_on = services.email_ready(q.organization)
+    wa_on = services.whatsapp_ready(q.organization)
     options = []
     for c in contacts:
         chans = []
         for ch in c.channels.all():
-            is_email = ch.type == ChannelType.EMAIL
-            default = c.pk == q.contact_id and is_email and c.preferred_channel in ("email", "both")
-            chans.append({"ch": ch, "key": f"{ch.type}:{ch.pk}", "enabled": is_email, "default": default})
+            if ch.type == ChannelType.EMAIL:
+                enabled, wanted = email_on, c.preferred_channel in ("email", "both")
+            elif ch.type == ChannelType.WHATSAPP:
+                enabled, wanted = wa_on, c.preferred_channel in ("whatsapp", "both")
+            else:
+                continue  # plain phone numbers can't receive documents
+            default = enabled and wanted and c.pk == q.contact_id and ch.is_primary
+            chans.append({"ch": ch, "key": f"{ch.type}:{ch.pk}", "enabled": enabled, "default": default})
         options.append({"contact": c, "channels": chans})
-    # If the main contact prefers WhatsApp but has an email, still preselect the email (WhatsApp comes later).
+    # Preferred channel unavailable? Fall back to whatever the main contact can receive.
     for opt in options:
         if opt["contact"].pk == q.contact_id and not any(x["default"] for x in opt["channels"]):
             for x in opt["channels"]:
@@ -63,6 +74,7 @@ def send_page(request, pk):
         initial={
             "subject": services.render_template(subject_tpl, variables),
             "body": services.render_template(body_tpl, variables),
+            "wa_body": services.render_template(services.whatsapp_templates(q.organization), variables),
         }
     )
     ctx = {
@@ -71,6 +83,7 @@ def send_page(request, pk):
         "options": _recipient_options(request, q),
         "reviewed": services.has_reviewed(q, request.user),
         "email_ready": services.email_ready(q.organization),
+        "whatsapp_ready": services.whatsapp_ready(q.organization),
         **_deliveries_ctx(q),
     }
     return render(request, "messaging/send.html", ctx)
@@ -105,6 +118,7 @@ def send_submit(request, pk):
             recipients,
             subject=form.cleaned_data["subject"],
             body=form.cleaned_data["body"],
+            wa_body=form.cleaned_data["wa_body"],
             confirmed=form.cleaned_data["confirm"],
         )
     except services.SendError as e:
@@ -127,6 +141,20 @@ def retry_delivery(request, pk):
     try:
         services.retry(d, request.user)
         messages.success(request, _("بنحاول نبعت تاني."))
+    except services.SendError as e:
+        messages.error(request, str(e))
+    return redirect("messaging:send", pk=d.quotation_id)
+
+
+@require_POST
+@require_perm("quotation.send")
+def fallback_email(request, pk):
+    d = get_object_or_404(
+        Delivery.objects.for_org(request.organization).select_related("quotation", "contact_channel"), pk=pk
+    )
+    try:
+        services.fallback_to_email(d, request.user)
+        messages.success(request, _("اتبعت بالإيميل بدل الواتساب."))
     except services.SendError as e:
         messages.error(request, str(e))
     return redirect("messaging:send", pk=d.quotation_id)
@@ -211,3 +239,103 @@ def templates_settings(request):
         "messaging/settings_templates.html",
         {"form": form, "variables": services.VARIABLES, "tab": "templates"},
     )
+
+
+# --- WhatsApp settings -----------------------------------------------------------------------
+
+
+def _wa_ctx(request):
+    org = request.organization
+    cfg = SendingChannelConfig.for_org(org, ChannelKind.WHATSAPP)
+    st = whatsapp.status(org)
+    if st.get("state") == "ready" and st.get("me"):
+        services.apply_gateway_status(org.pk, "ready", st["me"])
+        cfg.refresh_from_db()
+    expected = getattr(getattr(org, "settings", None), "whatsapp_sender", "") or ""
+    connected = cfg.sender_identity if st.get("state") == "ready" else ""
+    return {
+        "cfg": cfg,
+        "st": st,
+        "state_label": whatsapp.STATE_LABELS.get(st.get("state"), st.get("state")),
+        "expected": expected,
+        "mismatch": bool(connected and expected and connected != expected),
+        "tab": "whatsapp",
+        "test_form": WhatsAppTestForm(),
+    }
+
+
+@require_perm("settings.manage")
+def whatsapp_settings(request):
+    return render(request, "messaging/settings_whatsapp.html", _wa_ctx(request))
+
+
+@require_perm("settings.manage")
+def whatsapp_status(request):
+    return render(request, "messaging/partials/whatsapp_status.html", _wa_ctx(request))
+
+
+@require_POST
+@require_perm("settings.manage")
+def whatsapp_connect(request):
+    cfg = SendingChannelConfig.for_org(request.organization, ChannelKind.WHATSAPP)
+    cfg.is_active = True
+    cfg.save(update_fields=["is_active", "updated_at"])
+    try:
+        whatsapp.start(request.organization)
+    except Exception:  # gateway down: the status panel explains it
+        messages.error(request, _("بوابة الواتساب مش شغالة. شغّل run.bat تاني."))
+    return redirect("messaging:whatsapp")
+
+
+@require_POST
+@require_perm("settings.manage")
+def whatsapp_disconnect(request):
+    try:
+        whatsapp.logout(request.organization)
+    except Exception:
+        messages.error(request, _("بوابة الواتساب مش شغالة."))
+    services.apply_gateway_status(request.organization.pk, "disconnected")
+    SendingChannelConfig.objects.filter(organization=request.organization, kind=ChannelKind.WHATSAPP).update(
+        is_active=False, sender_identity=""
+    )
+    messages.success(request, _("الواتساب اتفصل."))
+    return redirect("messaging:whatsapp")
+
+
+@require_POST
+@require_perm("settings.manage")
+def whatsapp_test(request):
+    form = WhatsAppTestForm(request.POST)
+    if not form.is_valid():
+        messages.error(request, " ".join(form.errors.get("to", [])) or _("رقم مش صحيح."))
+        return redirect("messaging:whatsapp")
+    result = whatsapp.WhatsAppProvider(request.organization).send_text(
+        form.cleaned_data["to"], _("رسالة تجربة من مرسول البرق ✓")
+    )
+    if result.ok:
+        messages.success(request, _("رسالة التجربة اتبعتت."))
+    else:
+        messages.error(request, result.error)
+    return redirect("messaging:whatsapp")
+
+
+@csrf_exempt
+@require_POST
+def whatsapp_webhook(request):
+    """Events from the local gateway, authenticated by an HMAC of the raw body (no session/CSRF)."""
+    if not whatsapp.verify_signature(request.body, request.headers.get("X-Signature", "")):
+        return HttpResponseForbidden("bad signature")
+    try:
+        payload = json.loads(request.body)
+    except ValueError:
+        return HttpResponseBadRequest("bad json")
+    event = payload.get("event")
+    if event == "ack":
+        services.apply_ack(str(payload.get("id", "")), int(payload.get("ack") or 0))
+    elif event == "status":
+        session = str(payload.get("session", ""))
+        if session.isdigit():
+            services.apply_gateway_status(
+                int(session), payload.get("state", ""), payload.get("me"), payload.get("error", "")
+            )
+    return JsonResponse({"ok": True})

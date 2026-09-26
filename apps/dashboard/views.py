@@ -2,8 +2,17 @@ from django.shortcuts import render
 from django.utils import timezone
 
 from apps.accounts.permissions import require_membership
-from apps.messaging.models import Delivery, DeliveryStatus
+from apps.messaging import whatsapp
+from apps.messaging.models import ChannelKind, Delivery, DeliveryStatus, SendingChannelConfig
 from apps.quotations.models import Quotation, QuotationStatus
+
+
+def _wa_state(org):
+    cfg = SendingChannelConfig.objects.filter(organization=org, kind=ChannelKind.WHATSAPP, is_active=True).first()
+    if cfg is None:
+        return {"state": "off", "label": "لسه متربطش"}
+    st = whatsapp.status(org).get("state")
+    return {"state": st, "label": whatsapp.STATE_LABELS.get(st, st), "number": cfg.sender_identity}
 
 
 @require_membership
@@ -20,6 +29,7 @@ def home(request):
         "recent": quotes.issued().select_related("customer").order_by("-finalized_at")[:5],
         "month_count": month.count(),
         "month_accepted": month.filter(status=QuotationStatus.ACCEPTED).count(),
+        "wa_state": _wa_state(request.organization),
         "failed": Delivery.objects.for_org(request.organization)
         .filter(status=DeliveryStatus.FAILED)
         .select_related("quotation")

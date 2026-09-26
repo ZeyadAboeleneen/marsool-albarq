@@ -23,8 +23,14 @@
   <div class="space-y-6 lg:col-span-2">
     {% if not email_ready %}
     <div class="rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800">
-      {% translate "الإرسال بالإيميل لسه مش متظبط." %}
-      {% if can.settings_manage %}<a class="font-bold underline" href="{% url 'messaging:email_settings' %}">{% translate "اظبطه من الإعدادات" %}</a>{% else %}{% translate "كلّم مدير النظام." %}{% endif %}
+      {% translate "الإرسال بالإيميل مش متظبط." %}
+      {% if can.settings_manage %}<a class="font-bold underline" href="{% url 'messaging:email_settings' %}">{% translate "اظبطه" %}</a>{% endif %}
+    </div>
+    {% endif %}
+    {% if not whatsapp_ready %}
+    <div class="rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800">
+      {% translate "الواتساب مش متصل." %}
+      {% if can.settings_manage %}<a class="font-bold underline" href="{% url 'messaging:whatsapp' %}">{% translate "اربطه" %}</a>{% endif %}
     </div>
     {% endif %}
 
@@ -38,10 +44,10 @@
         <div class="mb-1 text-sm font-semibold">{{ opt.contact }}{% if opt.contact.job_title %} <span class="text-xs font-normal text-stone-500">— {{ opt.contact.job_title }}</span>{% endif %}</div>
         {% for x in opt.channels %}
         <label class="flex items-center gap-2 py-0.5 text-sm {% if not x.enabled %}text-stone-400{% endif %}">
-          <input type="checkbox" name="recipients" value="{{ x.key }}" class="accent-brand" {% if x.default and email_ready %}checked{% endif %} {% if not x.enabled or not email_ready %}disabled{% endif %}>
-          {% if x.ch.type == "email" %}✉️{% elif x.ch.type == "whatsapp" %}📱{% else %}☎{% endif %}
+          <input type="checkbox" name="recipients" value="{{ x.key }}" class="accent-brand" {% if x.default %}checked{% endif %} {% if not x.enabled %}disabled{% endif %}>
+          {% if x.ch.type == "email" %}{% translate "إيميل" %}{% else %}{% translate "واتساب" %}{% endif %}
           <span dir="ltr">{{ x.ch.display_value }}</span>
-          {% if not x.enabled %}<span class="text-xs">({% translate "واتساب في المرحلة الجاية" %})</span>{% endif %}
+          {% if not x.enabled %}<span class="text-xs">({% translate "مش متاح دلوقتي" %})</span>{% endif %}
         </label>
         {% empty %}
         <p class="text-xs text-amber-700">{% translate "مفيش رقم ولا إيميل." %}</p>
@@ -51,8 +57,13 @@
       <p class="text-sm text-amber-700">{% translate "العميل ملوش مسؤولين نشطين." %}</p>
       {% endfor %}
 
-      {% include "partials/field.html" with field=form.subject %}
-      {% include "partials/field.html" with field=form.body %}
+      <details open class="space-y-3"><summary class="cursor-pointer text-sm font-semibold text-stone-600">{% translate "رسالة الإيميل" %}</summary>
+        {% include "partials/field.html" with field=form.subject %}
+        {% include "partials/field.html" with field=form.body %}
+      </details>
+      <details {% if whatsapp_ready %}open{% endif %} class="space-y-3"><summary class="cursor-pointer text-sm font-semibold text-stone-600">{% translate "رسالة الواتساب (بتتبعت مع الـPDF)" %}</summary>
+        {% include "partials/field.html" with field=form.wa_body %}
+      </details>
 
       <label class="flex items-start gap-2 rounded-lg bg-brand-soft px-3 py-3 text-sm font-bold text-brand">
         <input type="checkbox" name="confirm" value="on" class="mt-1 accent-brand" x-model="confirmed" :disabled="!reviewed">

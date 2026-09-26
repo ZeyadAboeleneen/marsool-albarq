@@ -1,6 +1,6 @@
 {% load i18n %}
 <section id="deliveries" class="card"
-         {% if pending %}hx-get="{% url 'messaging:deliveries' q.pk %}" hx-trigger="every 3s" hx-swap="outerHTML"{% endif %}>
+         {% if pending %}hx-get="{% url 'messaging:deliveries' q.pk %}" hx-trigger="every 3s" hx-swap="outerHTML"{% else %}hx-get="{% url 'messaging:deliveries' q.pk %}" hx-trigger="every 20s" hx-swap="outerHTML"{% endif %}>
   <h2 class="border-b border-stone-100 px-4 py-3 font-bold">{% translate "سجل الإرسال" %}</h2>
   {% if deliveries %}
   <ul class="divide-y divide-stone-100">
@@ -9,7 +9,11 @@
       <span class="font-semibold">{% if d.channel == "email" %}✉️{% else %}📱{% endif %} {{ d.recipient_name }}</span>
       <span class="text-xs text-stone-500" dir="ltr">{{ d.recipient }}</span>
       <span class="ms-auto">
-        {% if d.status == "sent" or d.status == "delivered" or d.status == "read" %}
+        {% if d.status == "read" %}
+          <span class="badge bg-sky-50 text-sky-700">✓✓ {{ d.get_status_display }}</span>
+        {% elif d.status == "delivered" %}
+          <span class="badge bg-green-50 text-green-700">✓✓ {{ d.get_status_display }}</span>
+        {% elif d.status == "sent" %}
           <span class="badge bg-green-50 text-green-700">✓ {{ d.get_status_display }}</span>
         {% elif d.status == "failed" %}
           <span class="badge bg-red-50 text-red-700">✕ {{ d.get_status_display }}</span>
@@ -25,6 +29,9 @@
         <span class="flex-1">{{ d.error_message }}</span>
         {% if can.quotation_send %}
         <form method="post" action="{% url 'messaging:retry' d.pk %}">{% csrf_token %}<button class="btn-secondary px-2 py-1 text-xs">{% translate "إعادة المحاولة" %}</button></form>
+        {% if d.channel == "whatsapp" %}
+        <form method="post" action="{% url 'messaging:fallback_email' d.pk %}">{% csrf_token %}<button class="btn-secondary px-2 py-1 text-xs">{% translate "ابعت بالإيميل بدلها" %}</button></form>
+        {% endif %}
         {% endif %}
       </div>
       {% endif %}

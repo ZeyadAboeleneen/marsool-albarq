@@ -9,3 +9,4 @@ media/
 tmp/
 .pgdata/
 *.log
+whatsapp-gateway/node_modules/
