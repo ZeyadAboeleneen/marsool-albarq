@@ -9,6 +9,7 @@ from django.http import FileResponse, Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.dateparse import parse_date
 from django.utils.translation import gettext as _
+from django.views.decorators.clickjacking import xframe_options_sameorigin
 from django.views.decorators.http import require_POST
 
 from apps.accounts.models import User
@@ -17,6 +18,7 @@ from apps.catalog.models import Category, Product, ProductGroup
 from apps.customers.forms import ContactForm
 from apps.customers.models import Contact, Customer, CustomerKind
 from apps.documents import pdf as pdfdoc
+from apps.messaging.services import SENDABLE_STATUSES, record_review
 
 from . import services
 from .forms import CustomItemForm, MetaForm, parse_price
@@ -120,6 +122,8 @@ def quotation_detail(request, pk):
         "q": q,
         "sections": _sections(items),
         "revisions": revisions,
+        "sendable": q.status in SENDABLE_STATUSES,
+        "deliveries": list(q.deliveries.select_related("sent_by")),
         "can_cancel": has_perm(request.membership, "quotation.cancel")
         or (has_perm(request.membership, "quotation.cancel_own") and q.created_by_id == request.user.id),
     }
@@ -472,6 +476,7 @@ def preview_pdf(request, pk):
     return resp
 
 
+@xframe_options_sameorigin  # embedded in the review/send page
 @require_perm("quotation.view")
 def final_pdf(request, pk):
     """The stored PDF of an issued quotation (re-rendered from snapshots if the file is missing)."""
@@ -480,6 +485,8 @@ def final_pdf(request, pk):
         return redirect("quotations:preview", pk=q.pk)
     if not q.pdf_file or not q.pdf_file.storage.exists(q.pdf_file.name):
         pdfdoc.generate_final_pdf(q)
+    if request.GET.get("review") and has_perm(request.membership, "quotation.send"):
+        record_review(q, request.user)
     return FileResponse(
         q.pdf_file.open("rb"),
         content_type="application/pdf",

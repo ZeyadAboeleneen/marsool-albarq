@@ -4,11 +4,7 @@
 {% block content %}
 <h1 class="mb-6 text-2xl font-bold">{% translate "الإعدادات" %}</h1>
 
-<div class="mb-4 flex gap-2 overflow-x-auto border-b border-stone-200 text-sm font-semibold">
-  <span class="border-b-2 border-brand px-3 py-2 text-brand">{% translate "بيانات الشركة" %}</span>
-  <span class="px-3 py-2 text-stone-400">{% translate "العروض" %} · {% translate "قريبًا" %}</span>
-  <span class="px-3 py-2 text-stone-400">{% translate "الإرسال" %} · {% translate "قريبًا" %}</span>
-</div>
+{% include "partials/settings_tabs.html" with tab="company" %}
 
 <form method="post" enctype="multipart/form-data" class="space-y-6" novalidate>
   {% csrf_token %}

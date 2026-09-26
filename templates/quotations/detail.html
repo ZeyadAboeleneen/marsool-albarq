@@ -17,7 +17,9 @@
     <div class="flex flex-wrap gap-2">
       <a href="{% url 'quotations:pdf' q.pk %}" target="_blank" class="btn-secondary">{% translate "عرض PDF" %}</a>
       <a href="{% url 'quotations:pdf' q.pk %}?download=1" class="btn-secondary">{% translate "تحميل" %}</a>
-      <button class="btn-primary" disabled title="{% translate 'في المرحلة الجاية' %}">{% translate "إرسال" %}</button>
+      {% if can.quotation_send and sendable %}
+      <a href="{% url 'messaging:send' q.pk %}" class="btn-primary">{% translate "مراجعة وإرسال" %}</a>
+      {% endif %}
       {% if can.quotation_create %}
         {% if q.status != "cancelled" and q.status != "superseded" %}
         <form method="post" action="{% url 'quotations:revise' q.pk %}">{% csrf_token %}<button class="btn-secondary">{% translate "نسخة معدّلة" %}</button></form>
@@ -74,6 +76,21 @@
     <section class="card p-4 text-sm">
       <h2 class="mb-2 font-bold">{% translate "الشروط والملاحظات" %}</h2>
       <ol class="list-inside list-decimal space-y-1 text-stone-700">{% for t in q.terms %}<li>{{ t }}</li>{% endfor %}</ol>
+    </section>
+    {% endif %}
+
+    {% if deliveries %}
+    <section class="card p-4 text-sm">
+      <h2 class="mb-2 font-bold">{% translate "الإرسال" %}</h2>
+      <ul class="space-y-1">
+        {% for d in deliveries %}
+        <li class="flex flex-wrap items-center gap-2">
+          <span>{% if d.channel == "email" %}✉️{% else %}📱{% endif %} {{ d.recipient_name }}</span>
+          <span class="badge {% if d.status == 'failed' %}bg-red-50 text-red-700{% elif d.status == 'queued' or d.status == 'sending' %}bg-amber-50 text-amber-700{% else %}bg-green-50 text-green-700{% endif %}">{{ d.get_status_display }}</span>
+          <span class="text-xs text-stone-400">{{ d.queued_at|date:"m/d H:i" }}</span>
+        </li>
+        {% endfor %}
+      </ul>
     </section>
     {% endif %}
 

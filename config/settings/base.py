@@ -30,6 +30,7 @@ INSTALLED_APPS = [
     "apps.catalog",
     "apps.quotations",
     "apps.documents",
+    "apps.messaging",
 ]
 
 MIDDLEWARE = [
@@ -138,6 +139,11 @@ FIELD_ENCRYPTION_KEY = env("FIELD_ENCRYPTION_KEY")
 
 EMAIL_BACKEND = env("EMAIL_BACKEND", default="django.core.mail.backends.console.EmailBackend")
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="مرسول البرق <no-reply@localhost>")
+
+# Quotation sending (SMTP settings come from the settings UI, encrypted in the DB).
+MESSAGING_EMAIL_BACKEND = env("MESSAGING_EMAIL_BACKEND", default="django.core.mail.backends.smtp.EmailBackend")
+MESSAGING_SYNC = False  # True = send inline (tests); False = background thread locally, Celery in prod
+MESSAGING_RETRY_DELAYS = (60, 300, 900)  # seconds between automatic retries of temporary errors
 
 LOGGING = {
     "version": 1,

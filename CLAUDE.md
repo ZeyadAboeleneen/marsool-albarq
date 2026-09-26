@@ -78,6 +78,14 @@ No Node build step for the Django app. HTMX/Alpine/fonts are vendored in `static
 - Builder = one page of HTMX partials (party, items, meta, summary, picker) wired by the `itemsChanged` event.
 - `seed_org` never overwrites an existing org's settings unless `--force` (run.bat calls it on every start).
 
+## Messaging notes
+- Self-review gate: loading the final PDF with `?review=1` (the iframe on the send page) records a
+  `QuotationReview` for that user; `messaging.services.create_deliveries` requires it + the checkbox.
+- SMTP config lives in `SendingChannelConfig.config` (Fernet via `apps/core/crypto.py`); never render the password.
+- Dispatch: background thread locally, `MESSAGING_SYNC=True` in tests, Celery in production (Phase 10).
+  Temporary SMTP errors retry after `MESSAGING_RETRY_DELAYS`; auth errors don't.
+- The final PDF view is `xframe_options_sameorigin` so it can be embedded.
+
 ## Quality gates per phase
 - `.venv/Scripts/ruff check .` + `ruff format --check .` clean, `.venv/Scripts/python -m pytest` green, migrations committed, no TODOs left in phase scope.
 - New models registered in Django admin (superuser emergency access only).
