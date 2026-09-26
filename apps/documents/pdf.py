@@ -118,11 +118,54 @@ def _footer_html(q) -> str:
     )
 
 
+class PdfRenderError(RuntimeError):
+    pass
+
+
+def _browser_candidates():
+    """Chromium builds installed by `playwright install chromium`, most suitable first."""
+    import glob
+    import os
+
+    base = os.environ.get("PLAYWRIGHT_BROWSERS_PATH") or os.path.join(
+        os.environ.get("LOCALAPPDATA", str(Path.home())), "ms-playwright"
+    )
+    patterns = [
+        "chromium_headless_shell-*/chrome-headless-shell-win64/chrome-headless-shell.exe",
+        "chromium-*/chrome-win64/chrome.exe",
+        "chromium_headless_shell-*/chrome-headless-shell-linux64/chrome-headless-shell",
+        "chromium-*/chrome-linux*/chrome",
+    ]
+    found = []
+    for pat in patterns:
+        found += sorted(glob.glob(os.path.join(base, pat)), reverse=True)
+    return [f for f in found if os.path.isfile(f)]
+
+
+def _launch(p):
+    """Launch Chromium robustly: Playwright's default first, then every installed build by explicit path."""
+    errors = []
+    try:
+        return p.chromium.launch()
+    except Exception as e:
+        errors.append(str(e).splitlines()[0])
+    for exe in _browser_candidates():
+        try:
+            return p.chromium.launch(executable_path=exe)
+        except Exception as e:
+            errors.append(f"{exe}: {str(e).splitlines()[0]}")
+    logger.error("Could not launch Chromium for PDFs: %s", " | ".join(errors))
+    raise PdfRenderError(
+        "مش قادر أشغّل Chromium عشان أعمل الـPDF. شغّل الأمر ده مرة واحدة: "
+        r".venv\Scripts\python -m playwright install chromium"
+    )
+
+
 def html_to_pdf(html: str, footer_html: str = "") -> bytes:
     from playwright.sync_api import sync_playwright
 
     with sync_playwright() as p:
-        browser = p.chromium.launch()
+        browser = _launch(p)
         try:
             page = browser.new_page()
             page.set_content(html, wait_until="load")

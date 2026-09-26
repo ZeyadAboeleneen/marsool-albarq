@@ -470,13 +470,16 @@ def preview_pdf(request, pk):
         return redirect("quotations:pdf", pk=q.pk)
     if not has_perm(request.membership, "quotation.create"):
         raise PermissionDenied
-    data = pdfdoc.render_pdf(q, draft=True)
+    try:
+        data = pdfdoc.render_pdf(q, draft=True)
+    except pdfdoc.PdfRenderError as e:
+        return render(request, "quotations/pdf_error.html", {"q": q, "error": str(e)}, status=503)
     resp = HttpResponse(data, content_type="application/pdf")
     resp["Content-Disposition"] = "inline"
     return resp
 
 
-@xframe_options_sameorigin  # embedded in the review/send page
+@xframe_options_sameorigin  # embedded in the review/send page (also its error page)
 @require_perm("quotation.view")
 def final_pdf(request, pk):
     """The stored PDF of an issued quotation (re-rendered from snapshots if the file is missing)."""
@@ -484,7 +487,10 @@ def final_pdf(request, pk):
     if q.is_editable:
         return redirect("quotations:preview", pk=q.pk)
     if not q.pdf_file or not q.pdf_file.storage.exists(q.pdf_file.name):
-        pdfdoc.generate_final_pdf(q)
+        try:
+            pdfdoc.generate_final_pdf(q)
+        except pdfdoc.PdfRenderError as e:
+            return render(request, "quotations/pdf_error.html", {"q": q, "error": str(e)}, status=503)
     if request.GET.get("review") and has_perm(request.membership, "quotation.send"):
         record_review(q, request.user)
     return FileResponse(

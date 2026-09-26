@@ -135,3 +135,38 @@ def test_pdf_cross_tenant_404(client, world, org_b, make_member):
     client.force_login(make_member(org_b, "owner"))
     assert client.get(reverse("quotations:pdf", args=[q.pk])).status_code == 404
     assert client.get(reverse("quotations:preview", args=[q.pk])).status_code == 404
+
+
+def test_launch_falls_back_to_explicit_executable(monkeypatch):
+    calls = []
+
+    class FakeChromium:
+        def launch(self, executable_path=None):
+            calls.append(executable_path)
+            if executable_path is None:
+                raise RuntimeError("Executable doesn't exist at X")
+            return "browser"
+
+    class FakeP:
+        chromium = FakeChromium()
+
+    monkeypatch.setattr(pdf, "_browser_candidates", lambda: ["C:/a/chrome-headless-shell.exe"])
+    assert pdf._launch(FakeP()) == "browser"
+    assert calls == [None, "C:/a/chrome-headless-shell.exe"]
+
+    monkeypatch.setattr(pdf, "_browser_candidates", list)
+    with pytest.raises(pdf.PdfRenderError):
+        pdf._launch(FakeP())
+
+
+def test_pdf_view_shows_friendly_error(client, world, monkeypatch):
+    org, sales, jaz, contact = world
+    q = services.finalize(_quote(org, sales, jaz, contact), sales)
+
+    def boom(*a, **k):
+        raise pdf.PdfRenderError("مش قادر أشغّل Chromium")
+
+    monkeypatch.setattr(pdf, "render_pdf", boom)
+    client.force_login(sales)
+    r = client.get(reverse("quotations:pdf", args=[q.pk]))
+    assert r.status_code == 503 and "مش قادر أشغّل Chromium" in r.content.decode()

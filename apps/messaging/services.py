@@ -261,6 +261,13 @@ def _wait_for_whatsapp_slot(org):
 
 
 def _send_once(d, q):
+    try:
+        return _send_channel(d, q)
+    except pdfdoc.PdfRenderError as e:
+        return ProviderResult(ok=False, error=str(e))
+
+
+def _send_channel(d, q):
     if d.channel == ChannelKind.EMAIL:
         provider, cfg = email_provider(q.organization)
         if provider is None:
