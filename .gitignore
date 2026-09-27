@@ -11,3 +11,4 @@ tmp/
 *.log
 whatsapp-gateway/node_modules/
 whatsapp-gateway/.wwebjs_cache/
+.wwebjs_cache/
