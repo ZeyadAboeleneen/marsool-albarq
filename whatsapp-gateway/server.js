@@ -12,6 +12,9 @@
  */
 "use strict";
 
+// Must run before whatsapp-web.js is loaded (see patch-wwebjs.js).
+console.log("wwebjs media fix:", require("./patch-wwebjs")());
+
 const crypto = require("crypto");
 const fs = require("fs");
 const os = require("os");
@@ -96,16 +99,37 @@ function start(id) {
     s.state = "qr";
     s.qr = await QRCode.toDataURL(qr, { margin: 1, width: 280 });
   });
+  const markReady = () => {
+    if (s.state === "ready") return;
+    s.state = "ready";
+    s.qr = null;
+    s.me = client.info && client.info.wid ? client.info.wid.user : s.me;
+    notify({ event: "status", session: id, state: "ready", me: s.me });
+  };
   client.on("authenticated", () => {
     s.state = "connecting";
     s.qr = null;
+    // Newer WhatsApp Web builds sometimes never fire "ready". Watch the real connection state instead.
+    const watchdog = setInterval(async () => {
+      if (s.client !== client || s.state === "ready" || s.state === "disconnected") return clearInterval(watchdog);
+      try {
+        if ((await client.getState()) === "CONNECTED") {
+          if (!s.me) {
+            s.me = await client.pupPage.evaluate(() => {
+              const me = window.require("WAWebUserPrefsMeUser").getMaybeMePnUser?.() ||
+                window.require("WAWebUserPrefsMeUser").getMaybeMeUser?.();
+              return me ? me.user : null;
+            }).catch(() => null);
+          }
+          clearInterval(watchdog);
+          markReady();
+        }
+      } catch (_) {
+        /* page still loading */
+      }
+    }, 5000);
   });
-  client.on("ready", () => {
-    s.state = "ready";
-    s.qr = null;
-    s.me = client.info && client.info.wid ? client.info.wid.user : null;
-    notify({ event: "status", session: id, state: "ready", me: s.me });
-  });
+  client.on("ready", markReady);
   client.on("auth_failure", (msg) => {
     s.state = "disconnected";
     notify({ event: "status", session: id, state: "auth_failure", error: String(msg) });
@@ -184,14 +208,33 @@ app.post("/sessions/:id/send", async (req, res) => {
   try {
     const numberId = await s.client.getNumberId(String(to));
     if (!numberId) return res.status(422).json({ error: "not_on_whatsapp" });
+    const chatId = numberId._serialized;
+    // Current WhatsApp Web stores the new message under another key (LID chats), so wwebjs often
+    // returns undefined even though it was delivered. Capture the id from our own "message_create"
+    // event instead. Django serializes sends (lock + rate limit), so the next outgoing one is ours.
+    const wantType = pdf ? "document" : "chat";
+    let captured = null;
+    const onCreate = (m) => {
+      if (!captured && m.fromMe && m.type === wantType) captured = m.id._serialized;
+    };
+    s.client.on("message_create", onCreate);
     let msg;
-    if (pdf) {
-      const media = new MessageMedia("application/pdf", pdf, filename || "quotation.pdf");
-      msg = await s.client.sendMessage(numberId._serialized, media, { caption: caption || "", sendMediaAsDocument: true });
-    } else {
-      msg = await s.client.sendMessage(numberId._serialized, caption || "");
+    try {
+      const opts = { waitUntilMsgSent: true };
+      if (pdf) {
+        const media = new MessageMedia("application/pdf", pdf, filename || "quotation.pdf");
+        msg = await s.client.sendMessage(chatId, media, { ...opts, caption: caption || "", sendMediaAsDocument: true });
+      } else {
+        msg = await s.client.sendMessage(chatId, caption || "", opts);
+      }
+      for (let i = 0; i < 20 && !(msg && msg.id) && !captured; i++) await new Promise((r) => setTimeout(r, 250));
+    } finally {
+      s.client.removeListener("message_create", onCreate);
     }
-    res.json({ id: msg.id._serialized });
+    const id = msg && msg.id ? msg.id._serialized : captured;
+    // sendMessage didn't throw → WhatsApp accepted it. Without an id we just can't track ✓✓;
+    // report success anyway so nobody retries and the customer doesn't get it twice.
+    res.json({ id: id || null, tracked: Boolean(id) });
   } catch (err) {
     res.status(502).json({ error: "send_failed", detail: err.message });
   }

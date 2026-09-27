@@ -26,6 +26,7 @@ ERRORS = {
     "not_on_whatsapp": "الرقم ده مش عليه واتساب.",
     "not_ready": "الواتساب مش متصل. اربطه من الإعدادات.",
     "bad_number": "رقم الموبايل مش صحيح.",
+    "send_unconfirmed": "واتساب مأكدش الإرسال. بص على المحادثة قبل ما تعيد، عشان متتبعتش مرتين.",
 }
 
 
@@ -83,8 +84,9 @@ class WhatsAppProvider:
             data = r.json()
         except ValueError:
             data = {}
-        if r.status_code == 200 and data.get("id"):
-            return ProviderResult(ok=True, provider_message_id=data["id"])
+        if r.status_code == 200:
+            # id can be null when WhatsApp accepted the message but didn't expose its key (no ✓✓ tracking).
+            return ProviderResult(ok=True, provider_message_id=data.get("id") or "")
         code = data.get("error", "")
         temporary = code == "send_failed"
         detail = data.get("detail", "")

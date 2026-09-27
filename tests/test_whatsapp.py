@@ -29,6 +29,7 @@ class FakeGateway:
         self.me = "201000967017"
         self.sent = []
         self.fail_with = None  # e.g. ("not_on_whatsapp", 422)
+        self.untracked = False  # gateway accepted the send but couldn't read the message id
         self.started = self.logged_out = 0
 
     def handler(self, request: httpx.Request):
@@ -50,6 +51,8 @@ class FakeGateway:
                 return httpx.Response(status, json={"error": code})
             body = json.loads(request.content)
             self.sent.append(body)
+            if self.untracked:
+                return httpx.Response(200, json={"id": None, "tracked": False})
             return httpx.Response(200, json={"id": f"true_{body['to']}@c.us_MSG{len(self.sent)}"})
         return httpx.Response(404)
 
@@ -309,3 +312,12 @@ def test_cross_tenant(client, world, org_b, make_member, gateway):
     # org B's WhatsApp page talks to its own session id, never org A's
     client.get(reverse("messaging:whatsapp"))
     assert whatsapp.session_id(org_b) != whatsapp.session_id(world["org"])
+
+
+def test_untracked_send_counts_as_sent_and_is_not_retried(client, world, gateway):
+    gateway.untracked = True
+    client.force_login(world["sales"])
+    _review_and_send(client, world, [f"whatsapp:{world['wa'].pk}"])
+    d = Delivery.objects.get()
+    assert d.status == DeliveryStatus.SENT and d.attempts == 1 and d.provider_message_id == ""
+    assert len(gateway.sent) == 1  # never sent twice
