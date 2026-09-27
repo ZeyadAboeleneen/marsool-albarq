@@ -11,6 +11,7 @@ from django.db import close_old_connections, transaction
 from django.utils import timezone
 from django.utils.translation import gettext as _
 
+from apps.audit import services as audit
 from apps.core.phones import mask
 from apps.documents import pdf as pdfdoc
 from apps.quotations.models import QuotationStatus
@@ -224,12 +225,26 @@ def process_delivery(delivery_id: int):
             d.provider_message_id = result.provider_message_id[:250]
             d.save(update_fields=["status", "sent_at", "error_message", "provider_message_id", "updated_at"])
             _mark_quote_sent(q, now)
+            audit.log(
+                "delivery.sent",
+                org=q.organization,
+                actor=d.sent_by,
+                target=q,
+                summary=f"{q.display_number} → {d.recipient_name} ({d.get_channel_display()}: {d.recipient})",
+            )
             logger.info("Delivery %s sent via %s to %s", d.pk, d.channel, _masked(d))
             return d
         d.status, d.error_message = DeliveryStatus.FAILED, result.error
         d.save(update_fields=["status", "error_message", "updated_at"])
         logger.warning("Delivery %s failed (attempt %s): %s", d.pk, d.attempts, result.error)
         if not result.temporary or attempt >= len(delays):
+            audit.log(
+                "delivery.failed",
+                org=q.organization,
+                actor=d.sent_by,
+                target=q,
+                summary=f"{q.display_number} → {d.recipient_name} ({d.get_channel_display()}): {result.error}"[:300],
+            )
             return d
         time.sleep(delays[attempt])
     return d

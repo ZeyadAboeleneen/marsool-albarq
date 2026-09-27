@@ -10,6 +10,7 @@ from django.utils import timezone
 from django.utils.translation import gettext as _
 from django.views.decorators.http import require_POST
 
+from apps.audit import services as audit
 from apps.organizations.models import Membership, Role
 
 from .forms import AcceptInviteForm, EmailAuthenticationForm, InviteForm, RoleForm
@@ -111,6 +112,7 @@ def invite_create(request):
     link = request.build_absolute_uri(reverse("accounts:accept_invite", args=[token]))
     _send_invite_email(request, inv, link)
     request.session["new_invite_link"] = link
+    audit.log("user.invited", request=request, summary=f"{inv.full_name} <{inv.email}> — {inv.get_role_display()}")
     messages.success(request, _("اتعملت الدعوة. ابعت الرابط للمستخدم، وصالح لمدة 48 ساعة."))
     return redirect("accounts:users")
 
@@ -121,6 +123,7 @@ def invite_revoke(request, pk):
     inv = get_object_or_404(Invitation.objects.for_org(request.organization).pending(), pk=pk)
     inv.revoked_at = timezone.now()
     inv.save(update_fields=["revoked_at", "updated_at"])
+    audit.log("user.invite_revoked", request=request, summary=inv.email)
     messages.success(request, _("الدعوة اتلغت."))
     return redirect("accounts:users")
 
@@ -142,6 +145,7 @@ def membership_role(request, pk):
     if form.is_valid():
         m.role = form.cleaned_data["role"]
         m.save(update_fields=["role", "updated_at"])
+        audit.log("user.role", request=request, summary=f"{m.user.email} → {m.get_role_display()}")
         messages.success(request, _("الدور اتغير."))
     else:
         messages.error(request, _("الدور ده مش مسموح."))
@@ -154,6 +158,7 @@ def membership_toggle(request, pk):
     m = _editable_membership(request, pk)
     m.is_active = not m.is_active
     m.save(update_fields=["is_active", "updated_at"])
+    audit.log("user.toggled", request=request, summary=f"{m.user.email}: {'مفعّل' if m.is_active else 'موقوف'}")
     messages.success(request, _("الحساب اتفعّل.") if m.is_active else _("الحساب اتوقف."))
     return redirect("accounts:users")
 
@@ -183,6 +188,7 @@ def accept_invite(request, token):
                 email=inv.email, password=form.cleaned_data["password1"], full_name=form.cleaned_data["full_name"]
             )
             Membership.objects.create(user=user, organization=inv.organization, role=inv.role)
+            audit.log("user.joined", request=request, org=inv.organization, actor=user, summary=user.email)
             inv.accepted_at = timezone.now()
             inv.save(update_fields=["accepted_at", "updated_at"])
         messages.success(request, _("الحساب اتعمل. ادخل بالإيميل وكلمة المرور."))

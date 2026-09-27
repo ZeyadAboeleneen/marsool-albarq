@@ -22,6 +22,7 @@
                 {% if g.is_active %}hx-confirm="{% translate 'إيقاف المجموعة دي؟ أقسامها ومنتجاتها مش هتظهر في العروض.' %}"{% endif %}>
           {% if g.is_active %}{% translate "إيقاف" %}{% else %}{% translate "تفعيل" %}{% endif %}
         </button>
+        {% if not cats %}<button type="button" class="btn-ghost px-2 py-1 text-xs text-red-700" hx-post="{% url 'catalog:group_delete' g.pk %}" hx-confirm="{% translate 'مسح المجموعة دي؟' %}">{% translate "مسح" %}</button>{% endif %}
       </div>
       {% endif %}
     </header>
@@ -41,6 +42,7 @@
                   {% if c.is_active %}hx-confirm="{% translate 'إيقاف القسم ده؟ منتجاته مش هتظهر في العروض.' %}"{% endif %}>
             {% if c.is_active %}{% translate "إيقاف" %}{% else %}{% translate "تفعيل" %}{% endif %}
           </button>
+          {% if not products %}<button type="button" class="btn-ghost px-2 py-0.5 text-xs text-red-700" hx-post="{% url 'catalog:category_delete' c.pk %}" hx-confirm="{% translate 'مسح القسم ده؟' %}">{% translate "مسح" %}</button>{% endif %}
           {% endif %}
         </div>
         <div id="cat-slot-{{ c.pk }}"></div>

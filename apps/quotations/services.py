@@ -269,7 +269,9 @@ def finalize(q: Quotation, user) -> Quotation:
     if problems:
         raise FinalizeError(problems)
 
-    if q.parent_quotation_id:
+    if q.number:
+        pass  # re-issued after "تعديل": keeps its number (and revision)
+    elif q.parent_quotation_id:
         root = Quotation.objects.select_for_update().get(pk=q.root.pk)
         q.number = root.number
         top = Quotation.objects.filter(organization_id=q.organization_id, number=root.number).aggregate(
@@ -287,6 +289,57 @@ def finalize(q: Quotation, user) -> Quotation:
     q.finalized_by = user
     q.finalized_at = timezone.now()
     q.save()
+    from apps.audit.services import log
+
+    log("quote.finalized", org=q.organization, actor=user, target=q, summary=f"{q.display_number} — {q.customer.name}")
     # Render the stored PDF once the number is committed (Celery in production, inline locally).
     transaction.on_commit(lambda: generate_final_pdf_safely(q.pk))
     return q
+
+
+# --- edit issued / delete / expiry ---------------------------------------------------------------
+
+
+@transaction.atomic
+def reopen(q: Quotation, user) -> Quotation:
+    """Turn an issued quotation back into an editable draft, keeping its number. Re-issuing renders a new PDF."""
+    q = Quotation.objects.select_for_update(of=("self",)).get(pk=q.pk)
+    if q.is_editable:
+        return q
+    if q.pdf_file:
+        q.pdf_file.delete(save=False)
+    q.pdf_file = ""
+    q.pdf_generated_at = None
+    q.status = QuotationStatus.DRAFT
+    q.save(update_fields=["pdf_file", "pdf_generated_at", "status", "updated_at"])
+    q.reviews.all().delete()  # the old PDF was reviewed, not the new one
+    return q
+
+
+@transaction.atomic
+def delete_quotation(q: Quotation):
+    if q.pdf_file:
+        q.pdf_file.delete(save=False)
+    Quotation.objects.filter(parent_quotation=q).update(parent_quotation=q.parent_quotation)
+    q.delete()
+
+
+def expire_overdue(org=None) -> int:
+    """Issued quotations past their validity date become 'منتهي'. Cheap; called on page loads and by a command."""
+    qs = Quotation.objects.filter(
+        status__in=[QuotationStatus.FINALIZED, QuotationStatus.SENT], valid_until__lt=timezone.localdate()
+    )
+    if org is not None:
+        qs = qs.filter(organization=org)
+    expired = list(qs.values_list("pk", "organization_id", "number", "revision"))
+    if not expired:
+        return 0
+    Quotation.objects.filter(pk__in=[e[0] for e in expired]).update(status=QuotationStatus.EXPIRED)
+    from apps.audit.models import AuditEvent
+
+    AuditEvent.objects.bulk_create(
+        AuditEvent(organization_id=o, action="quote.expired", target_type="quotation", target_id=pk,
+                   summary=f"{num}-R{rev}" if rev else num)
+        for pk, o, num, rev in expired
+    )  # fmt: skip
+    return len(expired)

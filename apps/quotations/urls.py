@@ -29,6 +29,7 @@ urlpatterns = [
     path("<int:pk>/pdf/", views.final_pdf, name="pdf"),
     path("<int:pk>/delete/", views.delete_draft, name="delete"),
     path("<int:pk>/revise/", views.revise, name="revise"),
+    path("<int:pk>/reopen/", views.reopen, name="reopen"),
     path("<int:pk>/duplicate/", views.duplicate, name="duplicate"),
     path("<int:pk>/status/", views.set_status, name="status"),
 ]

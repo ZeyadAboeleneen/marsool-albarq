@@ -11,6 +11,8 @@
             {% if p.is_active %}hx-confirm="{% translate 'إيقاف الصنف ده؟ مش هيظهر في العروض الجديدة.' %}"{% endif %}>
       {% if p.is_active %}{% translate "إيقاف" %}{% else %}{% translate "تفعيل" %}{% endif %}
     </button>
+    <button type="button" class="btn-ghost px-2 py-0.5 text-xs text-red-700" hx-post="{% url 'catalog:product_delete' p.pk %}"
+            hx-target="#product-{{ p.pk }}" hx-swap="outerHTML" hx-confirm="{% translate 'مسح الصنف ده نهائيًا؟ العروض القديمة مش هتتأثر.' %}">{% translate "مسح" %}</button>
   </span>
   {% endif %}
 </div>

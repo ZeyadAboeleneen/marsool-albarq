@@ -42,7 +42,8 @@ No Node build step for the Django app. HTMX/Alpine/fonts are vendored in `static
   Never `Model.objects.all()` in views. Add a cross-tenant access test for every new view.
 - Money is `Decimal(12,2)`. No floats.
 - Phone numbers stored E.164 via `phonenumbers` (default region EG).
-- Finalized quotations are immutable; changes create a revision.
+- Issued quotations are locked while issued; «تعديل» (`services.reopen`) turns one back into a draft with the
+  same number (old PDF + reviews dropped). Revisions (-R1) and duplicates still exist. Delete = manager+.
 - Quote numbers generated inside `transaction.atomic()` with `select_for_update()` on `QuoteSequence`.
 - Permission checks in views via `@require_perm(...)`, never only in templates.
 - Secrets only from environment (`.env`, never committed; provide `.env.example`).
@@ -95,6 +96,14 @@ No Node build step for the Django app. HTMX/Alpine/fonts are vendored in `static
 - Django side: `apps/messaging/whatsapp.py` (httpx; tests inject `WA_GATEWAY_TRANSPORT`), webhook
   `/integrations/whatsapp/webhook/` verified by HMAC-SHA256 of the body. Acks: 2 → delivered, 3/4 → read.
 - Anti-ban: one message per `WA_RATE_LIMIT_SECONDS` (20) per org; manual sending only; email fallback button.
+
+## Audit notes
+- `apps.audit`: `audit.log(action, request=..., target=..., summary=...)` never raises; `AuditEvent` is
+  append-only (save on existing / delete raise). Login/logout/failed login via auth signals.
+- Screen `/activity/` (audit.view = manager+); quotation page shows its own timeline.
+- `expire_overdue()` runs on dashboard/list loads and via `manage.py expire_quotations` (run.bat on start).
+- Deleting: customers/contacts only when no quotation uses them; products anytime (items keep snapshots);
+  categories/groups only when empty.
 
 ## Quality gates per phase
 - `.venv/Scripts/ruff check .` + `ruff format --check .` clean, `.venv/Scripts/python -m pytest` green, migrations committed, no TODOs left in phase scope.

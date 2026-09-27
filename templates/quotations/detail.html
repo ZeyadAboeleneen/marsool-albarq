@@ -22,9 +22,12 @@
       {% endif %}
       {% if can.quotation_create %}
         {% if q.status != "cancelled" and q.status != "superseded" %}
-        <form method="post" action="{% url 'quotations:revise' q.pk %}">{% csrf_token %}<button class="btn-secondary">{% translate "نسخة معدّلة" %}</button></form>
+        <form method="post" action="{% url 'quotations:reopen' q.pk %}" onsubmit="return confirm('{% translate 'تعديل العرض؟ هيرجع مسودة بنفس الرقم، وبعد التعديل تصدره تاني.' %}')">{% csrf_token %}<button class="btn-secondary">{% translate "تعديل" %}</button></form>
         {% endif %}
         <form method="post" action="{% url 'quotations:duplicate' q.pk %}">{% csrf_token %}<button class="btn-secondary">{% translate "انسخ كعرض جديد" %}</button></form>
+      {% endif %}
+      {% if can.quotation_delete %}
+        <form method="post" action="{% url 'quotations:delete' q.pk %}" onsubmit="return confirm('{% translate 'مسح العرض ده نهائيًا؟ مش هينفع يرجع.' %}')">{% csrf_token %}<button class="btn-danger">{% translate "مسح" %}</button></form>
       {% endif %}
     </div>
   </div>
@@ -91,6 +94,21 @@
         </li>
         {% endfor %}
       </ul>
+    </section>
+    {% endif %}
+
+    {% if events %}
+    <section class="card p-4 text-sm">
+      <h2 class="mb-2 font-bold">{% translate "سجل العرض" %}</h2>
+      <ol class="space-y-2">
+        {% for e in events %}
+        <li class="border-s-2 border-stone-200 ps-3">
+          <div class="font-semibold">{{ e.action_label }}</div>
+          <div class="text-xs text-stone-600 break-words">{{ e.summary }}</div>
+          <div class="text-xs text-stone-400">{{ e.actor.full_name|default:_("النظام") }} · <span dir="ltr">{{ e.created_at|date:"Y/m/d H:i" }}</span></div>
+        </li>
+        {% endfor %}
+      </ol>
     </section>
     {% endif %}
 

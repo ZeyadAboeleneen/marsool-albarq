@@ -9,7 +9,8 @@
   <div>
     <a href="{% url 'quotations:list' %}" class="text-sm text-stone-500 hover:text-brand">← {% translate "العروض" %}</a>
     <h1 class="text-2xl font-bold">
-      {% if q.parent_quotation %}{% blocktranslate with n=q.parent_quotation.display_number %}نسخة معدّلة من {{ n }}{% endblocktranslate %}
+      {% if q.number %}{% translate "تعديل العرض" %} <span dir="ltr" class="font-mono">{{ q.display_number }}</span>
+      {% elif q.parent_quotation %}{% blocktranslate with n=q.parent_quotation.display_number %}نسخة معدّلة من {{ n }}{% endblocktranslate %}
       {% else %}{% translate "عرض سعر جديد" %}{% endif %}
       <span class="badge bg-amber-50 align-middle text-amber-700">{% translate "مسودة" %}</span>
     </h1>

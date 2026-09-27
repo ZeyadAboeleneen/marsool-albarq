@@ -14,6 +14,8 @@ from django.views.decorators.http import require_POST
 
 from apps.accounts.models import User
 from apps.accounts.permissions import has_perm, require_perm
+from apps.audit import services as audit
+from apps.audit.models import AuditEvent
 from apps.catalog.models import Category, Product, ProductGroup
 from apps.customers.forms import ContactForm
 from apps.customers.models import Contact, Customer, CustomerKind
@@ -55,6 +57,7 @@ def _sections(items):
 
 @require_perm("quotation.view")
 def quotation_list(request):
+    services.expire_overdue(request.organization)
     qs = _quotes(request).select_related("customer", "contact", "created_by")
     status = request.GET.get("status", "")
     customer_id = request.GET.get("customer", "")
@@ -124,6 +127,9 @@ def quotation_detail(request, pk):
         "revisions": revisions,
         "sendable": q.status in SENDABLE_STATUSES,
         "deliveries": list(q.deliveries.select_related("sent_by")),
+        "events": AuditEvent.objects.for_org(request.organization)
+        .filter(target_type="quotation", target_id=q.pk)
+        .select_related("actor")[:30],
         "can_cancel": has_perm(request.membership, "quotation.cancel")
         or (has_perm(request.membership, "quotation.cancel_own") and q.created_by_id == request.user.id),
     }
@@ -452,11 +458,28 @@ def finalize(request, pk):
 @require_POST
 @require_perm("quotation.create")
 def delete_draft(request, pk):
-    q = _draft(request, pk)
-    q.items.all().delete()
-    q.delete()
-    messages.success(request, _("المسودة اتمسحت."))
+    """Drafts: anyone who can create quotations. Issued quotations: owner/manager only."""
+    q = get_object_or_404(_quotes(request).select_related("customer"), pk=pk)
+    if not q.is_editable and not has_perm(request.membership, "quotation.delete"):
+        raise PermissionDenied
+    label = q.display_number or f"مسودة #{q.pk}"
+    services.delete_quotation(q)
+    audit.log("quote.draft_deleted", request=request, summary=f"{label} — {q.customer.name if q.customer else ''}")
+    messages.success(request, _("العرض اتمسح."))
     return redirect("quotations:list")
+
+
+@require_POST
+@require_perm("quotation.create")
+def reopen(request, pk):
+    """«تعديل» on an issued quotation: back to draft with the same number."""
+    q = get_object_or_404(_quotes(request), pk=pk)
+    if q.status in (QuotationStatus.CANCELLED, QuotationStatus.SUPERSEDED):
+        raise PermissionDenied
+    services.reopen(q, request.user)
+    audit.log("quote.reopened", request=request, target=q, summary=q.display_number)
+    messages.success(request, _("العرض رجع مسودة. عدّل وبعدين دوس «إصدار العرض» تاني."))
+    return redirect("quotations:edit", pk=q.pk)
 
 
 # PDF
@@ -511,6 +534,7 @@ def revise(request, pk):
     if q.is_editable or q.status in (QuotationStatus.CANCELLED, QuotationStatus.SUPERSEDED):
         raise PermissionDenied
     draft = services.create_revision(q, request.user)
+    audit.log("quote.revised", request=request, target=q, summary=q.display_number)
     messages.success(request, _("اتعملت نسخة معدّلة من %(n)s. عدّل وبعدين أصدرها.") % {"n": q.display_number})
     return redirect("quotations:edit", pk=draft.pk)
 
@@ -520,6 +544,7 @@ def revise(request, pk):
 def duplicate(request, pk):
     q = get_object_or_404(_quotes(request), pk=pk)
     draft = services.duplicate(q, request.user)
+    audit.log("quote.duplicated", request=request, target=q, summary=q.display_number or f"#{q.pk}")
     messages.success(request, _("اتعمل عرض جديد بنفس الأصناف."))
     return redirect("quotations:edit", pk=draft.pk)
 
@@ -546,5 +571,6 @@ def set_status(request, pk):
     else:
         q.status = new
         q.save(update_fields=["status", "updated_at"])
+        audit.log("quote.status", request=request, target=q, summary=f"{q.display_number} → {q.get_status_display()}")
         messages.success(request, _("الحالة اتغيرت: %(s)s") % {"s": q.get_status_display()})
     return redirect("quotations:detail", pk=q.pk)

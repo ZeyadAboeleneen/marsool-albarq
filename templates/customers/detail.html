@@ -31,6 +31,11 @@
         {% csrf_token %}
         <button class="{% if customer.is_active %}btn-danger{% else %}btn-secondary{% endif %}">{% if customer.is_active %}{% translate "إيقاف" %}{% else %}{% translate "تفعيل" %}{% endif %}</button>
       </form>
+      {% if can.customer_delete %}
+      <form method="post" action="{% url 'customers:delete' customer.pk %}" onsubmit="return confirm('{% translate 'مسح العميل ده ومسؤولينه نهائيًا؟' %}')">
+        {% csrf_token %}<button class="btn-danger">{% translate "مسح" %}</button>
+      </form>
+      {% endif %}
     {% endif %}
     </div>
   </div>

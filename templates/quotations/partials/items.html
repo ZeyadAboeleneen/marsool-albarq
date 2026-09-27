@@ -3,6 +3,7 @@
   <div class="flex flex-wrap items-center gap-2 border-b border-stone-100 px-4 py-3">
     <h2 class="font-bold"><span class="text-brand">②</span> {% translate "الأصناف والأسعار" %}</h2>
     <span class="badge bg-sand text-stone-700">{% blocktranslate count n=count %}{{ n }} صنف{% plural %}{{ n }} صنف{% endblocktranslate %}</span>
+    <a href="#picker-form" class="btn-secondary px-2 py-1 text-xs lg:hidden" onclick="setTimeout(()=>document.getElementById('pq').focus(),300)">{% translate "+ ضيف أصناف" %}</a>
     {% if missing %}<span class="badge bg-amber-50 text-amber-700">{% blocktranslate count n=missing %}{{ n }} من غير سعر{% plural %}{{ n }} من غير سعر{% endblocktranslate %}</span>{% endif %}
     {% if count %}
     <button type="button" class="btn-ghost ms-auto px-2 py-1 text-xs text-stone-500" hx-post="{% url 'quotations:clear_items' q.pk %}"

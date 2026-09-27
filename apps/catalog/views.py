@@ -5,6 +5,7 @@ from django.shortcuts import get_object_or_404, render
 from django.views.decorators.http import require_POST
 
 from apps.accounts.permissions import has_perm, require_perm
+from apps.audit import services as audit
 
 from .forms import CategoryForm, GroupForm, ProductForm
 from .models import Category, Product, ProductGroup, Unit
@@ -199,3 +200,37 @@ def reorder(request):
             objs[pk].sort_order = position
         model.objects.bulk_update(objs.values(), ["sort_order"])
     return HttpResponse(status=204)
+
+
+@require_POST
+@require_perm("product.edit")
+def product_delete(request, pk):
+    product = get_object_or_404(Product.objects.for_org(request.organization), pk=pk)
+    name = product.name
+    product.delete()  # quotation items keep their own copy of the name/unit/price
+    audit.log("product.deleted", request=request, summary=name)
+    return HttpResponse("")
+
+
+@require_POST
+@require_perm("product.edit")
+def category_delete(request, pk):
+    category = get_object_or_404(Category.objects.for_org(request.organization), pk=pk)
+    if category.products.exists():
+        resp = HttpResponse(status=204)
+        resp["HX-Trigger"] = '{"notify": "القسم فيه أصناف. امسحها أو انقلها الأول."}'
+        return resp
+    category.delete()
+    return _render_body(request)
+
+
+@require_POST
+@require_perm("product.edit")
+def group_delete(request, pk):
+    group = get_object_or_404(ProductGroup.objects.for_org(request.organization), pk=pk)
+    if group.categories.exists():
+        resp = HttpResponse(status=204)
+        resp["HX-Trigger"] = '{"notify": "المجموعة فيها أقسام. امسحها أو انقلها الأول."}'
+        return resp
+    group.delete()
+    return _render_body(request)

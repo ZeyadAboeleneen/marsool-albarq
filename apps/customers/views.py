@@ -6,6 +6,7 @@ from django.utils.translation import gettext as _
 from django.views.decorators.http import require_POST
 
 from apps.accounts.permissions import require_perm
+from apps.audit import services as audit
 
 from .forms import ChannelForm, ContactForm, CustomerForm
 from .models import Contact, ContactChannel, Customer, CustomerKind
@@ -195,3 +196,36 @@ def customer_history(request, pk):
     customer = get_object_or_404(_customers(request), pk=pk)
     records = customer.history.select_related("history_user").order_by("-history_date")[:50]
     return render(request, "customers/partials/history.html", {"customer": customer, "records": records})
+
+
+@require_POST
+@require_perm("customer.delete")
+def customer_delete(request, pk):
+    customer = get_object_or_404(_customers(request), pk=pk)
+    if customer.quotations.exists():
+        messages.error(request, _("العميل ده عليه عروض أسعار. امسح عروضه الأول، أو دوس «إيقاف» بدل المسح."))
+        return redirect("customers:detail", pk=customer.pk)
+    if customer.children.exists():
+        messages.error(request, _("فيه فروع تابعة للعميل ده. امسحها أو انقلها الأول."))
+        return redirect("customers:detail", pk=customer.pk)
+    name = customer.name
+    customer.delete()
+    audit.log("customer.deleted", request=request, summary=name)
+    messages.success(request, _("العميل «%(n)s» اتمسح.") % {"n": name})
+    return redirect("customers:list")
+
+
+@require_POST
+@require_perm("customer.edit")
+def contact_delete(request, pk):
+    contact = get_object_or_404(_contacts(request).select_related("customer"), pk=pk)
+    customer = contact.customer
+    if contact.quotations.exists():
+        messages.error(request, _("المسؤول ده متسجل على عروض. دوس «إيقاف» بدل المسح."))
+    else:
+        contact.delete()
+        messages.success(request, _("المسؤول اتمسح."))
+    if request.htmx:
+        resp = _render_contacts(request, customer)
+        return resp
+    return redirect("customers:detail", pk=customer.pk)

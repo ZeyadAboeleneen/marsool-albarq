@@ -9,6 +9,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
 from apps.accounts.permissions import require_perm
+from apps.audit import services as audit
 from apps.customers.models import ChannelType, Contact
 from apps.organizations.models import OrganizationSettings
 from apps.quotations.models import Quotation
@@ -124,6 +125,12 @@ def send_submit(request, pk):
     except services.SendError as e:
         messages.error(request, str(e))
         return redirect("messaging:send", pk=q.pk)
+    audit.log(
+        "delivery.queued",
+        request=request,
+        target=q,
+        summary=f"{q.display_number} → " + "، ".join(f"{r.name} ({r.channel})" for r in recipients),
+    )
     messages.success(request, _("الإرسال بدأ. الحالة بتتحدث هنا لوحدها."))
     return redirect("messaging:send", pk=q.pk)
 
@@ -188,6 +195,7 @@ def email_settings(request):
         cfg.sender_identity = d["from_email"]
         cfg.status = ChannelStatus.UNKNOWN
         cfg.save()
+        audit.log("settings.email", request=request, summary=d["from_email"])
         messages.success(request, _("إعدادات الإيميل اتحفظت. ابعت إيميل تجربة للتأكد."))
         return redirect("messaging:email_settings")
     return render(
@@ -232,6 +240,7 @@ def templates_settings(request):
     form = TemplatesForm(request.POST or None, instance=s)
     if request.method == "POST" and form.is_valid():
         form.save()
+        audit.log("settings.templates", request=request)
         messages.success(request, _("القوالب اتحفظت."))
         return redirect("messaging:templates")
     return render(
@@ -280,6 +289,7 @@ def whatsapp_connect(request):
     cfg = SendingChannelConfig.for_org(request.organization, ChannelKind.WHATSAPP)
     cfg.is_active = True
     cfg.save(update_fields=["is_active", "updated_at"])
+    audit.log("whatsapp.connect", request=request)
     try:
         whatsapp.start(request.organization)
     except Exception:  # gateway down: the status panel explains it
@@ -298,6 +308,7 @@ def whatsapp_disconnect(request):
     SendingChannelConfig.objects.filter(organization=request.organization, kind=ChannelKind.WHATSAPP).update(
         is_active=False, sender_identity=""
     )
+    audit.log("whatsapp.disconnect", request=request)
     messages.success(request, _("الواتساب اتفصل."))
     return redirect("messaging:whatsapp")
 

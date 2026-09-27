@@ -76,10 +76,10 @@
       </a>
       {% endif %}
       {% if can.audit_view %}
-      <span class="nav-link disabled">
+      <a href="{% url 'audit:activity' %}" class="nav-link {% if url_name == 'audit:activity' %}active{% endif %}">
         <svg class="size-5" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/></svg>
-        {% translate "سجل النشاط" %} <span class="ms-auto text-[10px]">{% translate "قريبًا" %}</span>
-      </span>
+        {% translate "سجل النشاط" %}
+      </a>
       {% endif %}
     </nav>
 

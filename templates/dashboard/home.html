@@ -60,6 +60,20 @@
     </ul>
   </section>
   {% endif %}
+  {% if expiring %}
+  <section class="card">
+    <h2 class="border-b border-stone-100 px-4 py-3 font-bold">{% translate "عروض بتنتهي خلال أسبوع" %}</h2>
+    <ul class="divide-y divide-stone-100">
+      {% for q in expiring %}
+      <li><a href="{% url 'quotations:detail' q.pk %}" class="flex items-center gap-3 px-4 py-2 text-sm hover:bg-sand/60">
+        <span class="font-mono font-bold" dir="ltr">{{ q.display_number }}</span>
+        <span class="flex-1 truncate">{{ q.customer.name }}</span>
+        <span class="text-xs text-amber-700" dir="ltr">{{ q.valid_until|date:"Y/m/d" }}</span>
+      </a></li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
   {% if recent %}
   <section class="card">
     <h2 class="border-b border-stone-100 px-4 py-3 font-bold">{% translate "آخر العروض" %}</h2>

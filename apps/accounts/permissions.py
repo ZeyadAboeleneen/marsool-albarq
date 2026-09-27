@@ -21,6 +21,8 @@ SALES = VIEWER | {
 MANAGER = SALES | {
     "product.edit",
     "quotation.cancel",
+    "quotation.delete",
+    "customer.delete",
     "audit.view",
 }
 ADMIN = MANAGER | {

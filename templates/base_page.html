@@ -13,5 +13,9 @@
 <body class="min-h-screen" hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
   {% block body %}{% endblock %}
   {% include "partials/toasts.html" %}
+  <script>
+    // Server-side HTMX responses can send HX-Trigger: {"notify": "message"} for a quick notice.
+    document.body.addEventListener("notify", (e) => alert(e.detail.value));
+  </script>
 </body>
 </html>

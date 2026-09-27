@@ -17,4 +17,7 @@ urlpatterns = [
     path("<int:pk>/", views.product_row, name="product_row"),
     path("<int:pk>/edit/", views.product_edit, name="product_edit"),
     path("<int:pk>/toggle/", views.product_toggle, name="product_toggle"),
+    path("<int:pk>/delete/", views.product_delete, name="product_delete"),
+    path("categories/<int:pk>/delete/", views.category_delete, name="category_delete"),
+    path("groups/<int:pk>/delete/", views.group_delete, name="group_delete"),
 ]

@@ -8,7 +8,8 @@
   {% else %}
   <div class="mb-3 rounded-lg bg-green-50 px-3 py-2 text-sm font-semibold text-green-800">
     {% translate "كله تمام وجاهز للإصدار." %}
-    {% if q.customer %}<span class="font-normal">{% translate "الرقم هيبقى على شكل" %} <span dir="ltr" class="font-mono font-bold">{{ q.customer.code }}-{{ q.issue_date|date:"Y/m/d" }}</span></span>{% endif %}
+    {% if q.number %}<span class="font-normal">{% translate "هيفضل بنفس الرقم" %} <span dir="ltr" class="font-mono font-bold">{{ q.display_number }}</span></span>
+    {% elif q.customer %}<span class="font-normal">{% translate "الرقم هيبقى على شكل" %} <span dir="ltr" class="font-mono font-bold">{{ q.customer.code }}-{{ q.issue_date|date:"Y/m/d" }}</span></span>{% endif %}
   </div>
   {% endif %}
   <div class="flex flex-wrap items-center justify-end gap-2">

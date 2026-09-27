@@ -7,6 +7,7 @@ from django.shortcuts import redirect, render
 from django.utils.translation import gettext as _
 
 from apps.accounts.permissions import require_membership, require_perm
+from apps.audit import services as audit
 
 from .forms import CompanySettingsForm, OrganizationForm
 from .models import OrganizationSettings
@@ -22,6 +23,9 @@ def settings_company(request):
         with transaction.atomic():
             org_form.save()
             form.save()
+        audit.log(
+            "settings.company", request=request, fields=sorted(set(org_form.changed_data) | set(form.changed_data))
+        )
         messages.success(request, _("بيانات الشركة اتحفظت."))
         return redirect("organizations:settings")
     return render(request, "organizations/settings_company.html", {"org_form": org_form, "form": form})
